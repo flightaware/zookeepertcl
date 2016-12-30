@@ -72,21 +72,24 @@ $handle create path ?-value value? ?-ephemeral? ?-sequence?
 
 Create the path.  Value, if provided, is set as the value at the path else the node's value is left as null.  "-ephemeral" makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If "-sequence" is provided, a unique monotonically increasing sequence number is appended to the pathname.
 
-$handle get $id $watch arrayName
+$handle get $path $watch arrayName
 
-Get the data at node $id.  Watch is 0 to not set up a watch and 1 to set one up.  arrayName is the name of an array to receive the stat array.
+Get the data at node $path.  Watch is 0 to not set up a watch and 1 to set one up.  arrayName is the name of an array to receive the stat array.
 
-Needs to be reworked with optional arguments as "create" has been.
+Needs to be reworked with optional arguments as "create" has been.  Want it to become
+$handle get $path ?-watch? ?-stat arrayName?
 
 $handle exists path watch statArrayName
 
 Return 1 if the path exists and 0 if it doesn't.  watch must be 0 or 1.  statArrayName is the name of an array to receive the status fields.
 
 This needs reworking with switch parameters as for "create".
+$handle exists path ?-watch? ?-stat arrayName?
 
 $handle get_children path watch
 
 Return a list of the child znodes of the given path.
+To become $handle get_children path ?-watch?
 
 Watch of 1 sets up a watch.  Also needs to be an optional parameter.
 
