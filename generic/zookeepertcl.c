@@ -265,9 +265,16 @@ zookeepertcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
 	return TCL_ERROR;
 }
 
+/*
+ *--------------------------------------------------------------
+ *
+ * zookeepertcl_watcher -- watcher callback function
+ *
+ *--------------------------------------------------------------
+ */
 void zookeepertcl_watcher (zhandle_t *zh, int type, int state, const char *path, void* context)
 {
-    zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)context;
+    zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)zoo_get_context (zh);
 	const char *typeString = zookeepertcl_type_to_string (type);
 	const char *stateString = zookeepertcl_state_to_string (state);
 
@@ -364,7 +371,6 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
 	ZOOAPI zhandle_t *zh = zo->zh;
 	int optIndex;
-	struct Stat stat;
 
     static CONST char *options[] = {
         "get",
@@ -406,33 +412,75 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     switch ((enum options) optIndex) {
 		case OPT_GET:
 		{
+			static CONST char *subOptions[] = {
+				"-watch",
+				"-stat",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_WATCH,
+				SUBOPT_STAT
+			};
+
 			char *path;
-			int watch = 0;
 			char buffer[1024*1024];
 			int bufferLen = sizeof(buffer);
 			watcher_fn wfn = NULL;
+			struct Stat *stat = NULL;
+			struct Stat statBuf;
 
-			if (objc != 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path watch statArrayName");
+			if (objc < 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "path ?-watch code? ?-stat statArray?");
 				return TCL_ERROR;
 			}
 
 			path = Tcl_GetString (objv[2]);
-			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
-			char *statArray = Tcl_GetString (objv[4]);
 
-			if (watch) {
+			int i;
+			int suboptIndex = 0;
+			Tcl_Obj *callbackObj = NULL;
+			char *statArray = NULL;
+
+			for (i = 3; i < objc; i++) {
+				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+					TCL_EXACT, &suboptIndex) != TCL_OK) {
+					return TCL_ERROR;
+				}
+
+				switch ((enum subOptions) suboptIndex) {
+					case SUBOPT_WATCH:
+					{
+						if (i + 1 >= objc) {
+							Tcl_WrongNumArgs (interp, 2, objv, "-watch code");
+							return TCL_ERROR;
+						}
+						callbackObj = objv[++i];
+						Tcl_IncrRefCount (callbackObj);
+					}
+
+					case SUBOPT_STAT:
+					{
+						if (i + 1 >= objc) {
+							Tcl_WrongNumArgs (interp, 2, objv, "-stat statArray");
+							return TCL_ERROR;
+						}
+						statArray = Tcl_GetString (objv[++i]);
+						stat = &statBuf;
+					}
+				}
+			}
+
+			if (callbackObj != NULL) {
 				wfn = zookeepertcl_watcher;
 			}
 
-			int status = zoo_wget (zh, path, wfn, NULL, buffer, &bufferLen, NULL);
+			int status = zoo_wget (zh, path, wfn, (void *)callbackObj, buffer, &bufferLen, stat);
 			if (status == ZOK) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
 			}
 
-			if (zookeepertcl_stat_to_array (interp, statArray, &stat) == TCL_ERROR) {
+			if (stat != NULL && zookeepertcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
 				return TCL_ERROR;
 			}
 			return zookeepertcl_set_tcl_return_code (interp, status);
@@ -576,6 +624,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
 				return TCL_ERROR;
 			}
+
 			if (watch) {
 				wfn = zookeepertcl_watcher;
 			}
@@ -670,7 +719,6 @@ int
 zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
     int                 optIndex;
-    char               *cmdName;
 	zookeepertcl_objectClientData *zo = NULL;
 
     static CONST char *options[] = {
