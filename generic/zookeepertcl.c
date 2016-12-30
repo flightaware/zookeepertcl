@@ -15,7 +15,7 @@
 /*
  *--------------------------------------------------------------
  *
- * zookeeper_state_to_string -- given a zookeeper
+ * zookeepertcl_state_to_string -- given a zookeeper
  *   state code return a string corresponding
  *
  * Results:
@@ -26,7 +26,7 @@
  *
  *--------------------------------------------------------------
  */
-const char *zookeeper_state_to_string (int state)
+const char *zookeepertcl_state_to_string (int state)
 {
 	if (state == 0)
 		return "CLOSED_STATE";
@@ -47,7 +47,7 @@ const char *zookeeper_state_to_string (int state)
 /*
  *--------------------------------------------------------------
  *
- * zookeeper_type_to_string -- given a zookeeper type
+ * zookeepertcl_type_to_string -- given a zookeeper type
  *   return a corresponding string
  *
  * Results:
@@ -58,7 +58,7 @@ const char *zookeeper_state_to_string (int state)
  *
  *--------------------------------------------------------------
  */
-const char *zookeeper_type_to_string (int state)
+const char *zookeepertcl_type_to_string (int state)
 {
 	if (state == ZOO_CREATED_EVENT)
 		return "CREATED_EVENT";
@@ -80,7 +80,7 @@ const char *zookeeper_type_to_string (int state)
 /*
  *--------------------------------------------------------------
  *
- * zookeeper_error_to_code_string -- given a zookeeper error
+ * zookeepertcl_error_to_code_string -- given a zookeeper error
  *   return a corresponding string
  *
  * Results:
@@ -91,7 +91,7 @@ const char *zookeeper_type_to_string (int state)
  *
  *--------------------------------------------------------------
  */
-const char *zookeeper_error_to_code_string (int status)
+const char *zookeepertcl_error_to_code_string (int status)
 {
 	switch (status) {
 		case ZOK:
@@ -174,7 +174,71 @@ const char *zookeeper_error_to_code_string (int status)
 /*
  *--------------------------------------------------------------
  *
- * zookeeper_set_tcl_return_code -- given a zookeeper status
+ * zookeepertcl_stat_to_array -- given an interp, array name
+ *   and zookeeper Stat struct, set elements in the array
+ *   with values corresponding to the Stat struct
+ *
+ * Results:
+ *      returns a pointer to a const char *
+ *
+ * Side effects:
+ *      None.
+ *
+ *--------------------------------------------------------------
+ */
+int zookeepertcl_stat_to_array (Tcl_Interp *interp, char *arrayName, struct Stat *stat)
+{
+	if (Tcl_SetVar2Ex (interp, arrayName, "czxid", Tcl_NewLongObj (stat->czxid), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "mzxid", Tcl_NewLongObj (stat->mzxid), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "ctime", Tcl_NewLongObj (stat->ctime), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "mtime", Tcl_NewLongObj (stat->mtime), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "version", Tcl_NewIntObj (stat->version), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "cversion", Tcl_NewIntObj (stat->cversion), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "aversion", Tcl_NewIntObj (stat->aversion), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "ephemeralOwner", Tcl_NewLongObj (stat->ephemeralOwner), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "dataLength", Tcl_NewIntObj (stat->dataLength), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "numChildren", Tcl_NewIntObj (stat->numChildren), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	if (Tcl_SetVar2Ex (interp, arrayName, "pzxid", Tcl_NewLongObj (stat->pzxid), TCL_LEAVE_ERR_MSG) == NULL) {
+		return TCL_ERROR;
+	}
+
+	return TCL_OK;
+}
+
+/*
+ *--------------------------------------------------------------
+ *
+ * zookeepertcl_set_tcl_return_code -- given a zookeeper status
  *   return TCL_OK if it's ZOK else set an error result and
  *   return TCL_ERROR
  *
@@ -188,7 +252,7 @@ const char *zookeeper_error_to_code_string (int status)
  *--------------------------------------------------------------
  */
 int
-zookeeper_set_tcl_return_code (int status) {
+zookeepertcl_set_tcl_return_code (int status) {
 	if (status == ZOK) {
 		return TCL_OK;
 	}
@@ -222,7 +286,7 @@ zookeepertcl_zookeeperObjectDelete (ClientData clientData)
 
 	int status = zoopeeker_close (zo->zh);
 	if (status != ZOK) {
-		char *errorString = zookeeper_error_to_string (status);
+		char *errorString = zookeepertcl_error_to_string (status);
 	}
 
 	// destroy stuff here
@@ -232,7 +296,7 @@ zookeepertcl_zookeeperObjectDelete (ClientData clientData)
 /*
  *----------------------------------------------------------------------
  *
- * zookeeper_EventSetupProc --
+ * zookeepertcl_EventSetupProc --
  *    This routine is a required argument to Tcl_CreateEventSource
  *
  *    Since we need to poll librdkafka to get events to fire, let's
@@ -245,7 +309,7 @@ zookeepertcl_zookeeperObjectDelete (ClientData clientData)
  *----------------------------------------------------------------------
  */
 void
-zookeeper_EventSetupProc (ClientData clientData, int flags) {
+zookeepertcl_EventSetupProc (ClientData clientData, int flags) {
 	Tcl_Time time = {0, 100000};
 
 	Tcl_SetMaxBlockTime (&time);
@@ -254,7 +318,7 @@ zookeeper_EventSetupProc (ClientData clientData, int flags) {
 /*
  *----------------------------------------------------------------------
  *
- * zookeeper_EventCheckProc --
+ * zookeepertcl_EventCheckProc --
  *
  *    This is a function we pass to Tcl_CreateEventSource that is
  *    invoked to see if any events have occurred and to queue them.
@@ -268,7 +332,7 @@ zookeeper_EventSetupProc (ClientData clientData, int flags) {
  *----------------------------------------------------------------------
  */
 void
-zookeeper_EventCheckProc (ClientData clientData, int flags) {
+zookeepertcl_EventCheckProc (ClientData clientData, int flags) {
     zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
 
 }
@@ -330,19 +394,24 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			int watch = 0;
 			struct Stat stat;
 
-			if (objc != 4) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path watch");
+			if (objc != 5) {
+				Tcl_WrongNumArgs (interp, 2, objv, "path watch statArrayName");
 				return TCL_ERROR;
 			}
 
 			path = Tcl_GetString (objv[2]);
-
 			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
 				return TCL_ERROR;
 			}
+			char *statArray = Tcl_GetString (objv[4]);
 
 			int status = zoo_exists (zh, path, watch, &stat);
-			return zookeeper_set_tcl_return_code (status);
+			if (status == ZOK) {
+				if (zookeepertcl_stat_to_array (interp, statArray, &stat) == TCL_ERROR) {
+					return TCL_ERROR;
+				}
+			}
+			return zookeepertcl_set_tcl_return_code (status);
 		}
 
 		case OPT_DELETE:
@@ -362,7 +431,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			}
 
 			int status = zoo_delete (zh, path, version);
-			return zookeeper_set_tcl_return_code (status);
+			return zookeepertcl_set_tcl_return_code (status);
 		}
 
 		case OPT_STATE:
@@ -373,7 +442,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			}
 
 			int state = zoo_state (zh);
-			const char *stateString = zookeeper_state_to_string (state);
+			const char *stateString = zookeepertcl_state_to_string (state);
 			Tcl_SetObjResult (interp, Tcl_NewStringObj (stateString, -1));
 			break;
 		}
