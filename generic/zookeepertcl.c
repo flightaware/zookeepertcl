@@ -29,19 +29,19 @@
 const char *zookeepertcl_state_to_string (int state)
 {
 	if (state == 0)
-		return "CLOSED_STATE";
+		return "CLOSED";
 	if (state == ZOO_CONNECTING_STATE)
-		return "CONNECTING_STATE";
+		return "CONNECTING";
 	if (state == ZOO_ASSOCIATING_STATE)
-		return "ASSOCIATING_STATE";
+		return "ASSOCIATING";
 	if (state == ZOO_CONNECTED_STATE)
-		return "CONNECTED_STATE";
+		return "CONNECTED";
 	if (state == ZOO_EXPIRED_SESSION_STATE)
-		return "EXPIRED_SESSION_STATE";
+		return "EXPIRED";
 	if (state == ZOO_AUTH_FAILED_STATE)
-		return "AUTH_FAILED_STATE";
+		return "AUTH_FAILED";
 
-	return "INVALID_STATE";
+	return "INVALID";
 }
 
 /*
@@ -404,26 +404,32 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     }
 
     switch ((enum options) optIndex) {
-		case OPT_SET:
+		case OPT_GET:
 		{
 			char *path;
-			char *buffer;
-			int bufferLen = 0;
-			int version = 0;
+			int watch = 0;
+			char buffer[1024*1024];
+			int bufferLen = sizeof(buffer);
 
 			if (objc != 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path data version");
+				Tcl_WrongNumArgs (interp, 2, objv, "path watch statArrayName");
 				return TCL_ERROR;
 			}
 
 			path = Tcl_GetString (objv[2]);
-			buffer = Tcl_GetStringFromObj (objv[3], &bufferLen);
-
-			if (Tcl_GetIntFromObj (interp, objv[4], &version) == TCL_ERROR) {
+			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
 				return TCL_ERROR;
 			}
+			char *statArray = Tcl_GetString (objv[4]);
 
-			int status = zoo_set (zh, path, buffer, bufferLen, version);
+			int status = zoo_get (zh, path, watch, buffer, &bufferLen, NULL);
+			if (status == ZOK) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+			}
+
+			if (zookeepertcl_stat_to_array (interp, statArray, &stat) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
 			return zookeepertcl_set_tcl_return_code (interp, status);
 		}
 
@@ -457,35 +463,28 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			return TCL_OK;
 		}
 
-		case OPT_GET:
+		case OPT_SET:
 		{
 			char *path;
-			int watch = 0;
-			char buffer[1024*1024];
-			int bufferLen = sizeof(buffer);
+			char *buffer;
+			int bufferLen = 0;
+			int version = 0;
 
 			if (objc != 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path watch statArrayName");
+				Tcl_WrongNumArgs (interp, 2, objv, "path data version");
 				return TCL_ERROR;
 			}
 
 			path = Tcl_GetString (objv[2]);
-			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
+			buffer = Tcl_GetStringFromObj (objv[3], &bufferLen);
+
+			if (Tcl_GetIntFromObj (interp, objv[4], &version) == TCL_ERROR) {
 				return TCL_ERROR;
 			}
-			char *statArray = Tcl_GetString (objv[4]);
 
-			int status = zoo_get (zh, path, watch, buffer, &bufferLen, NULL);
-			if (status == ZOK) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
-			}
-
-			if (zookeepertcl_stat_to_array (interp, statArray, &stat) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
+			int status = zoo_set (zh, path, buffer, bufferLen, version);
 			return zookeepertcl_set_tcl_return_code (interp, status);
 		}
-
 
 		case OPT_CREATE:
 		{
