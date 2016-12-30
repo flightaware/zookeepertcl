@@ -390,19 +390,6 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 		OPT_IS_UNRECOVERABLE
     };
 
-    static CONST char *subOptions[] = {
-        "-value",
-		"-ephemeral",
-		"-sequence",
-        NULL
-    };
-
-    enum subOptions {
-		SUBOPT_VALUE,
-		SUBOPT_EPHEMERAL,
-		SUBOPT_SEQUENCE
-    };
-
     // basic command line processing
     if (objc < 2) {
         Tcl_WrongNumArgs (interp, 1, objv, "subcommand ?args?");
@@ -501,6 +488,19 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
 		case OPT_CREATE:
 		{
+			static CONST char *subOptions[] = {
+				"-value",
+				"-ephemeral",
+				"-sequence",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_VALUE,
+				SUBOPT_EPHEMERAL,
+				SUBOPT_SEQUENCE
+			};
+
 			char *path;
 			int valueLen = -1;
 			char *value = NULL;
@@ -626,6 +626,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (is_unrecoverable (zh) == ZINVALIDSTATE));
 			break;
 		}
+
 	}
 
     return TCL_OK;
@@ -660,12 +661,14 @@ zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
     static CONST char *options[] = {
         "init",
         "version",
+        "debug_level",
         NULL
     };
 
     enum options {
         OPT_INIT,
-		OPT_VERSION
+		OPT_VERSION,
+		OPT_DEBUG_LEVEL
     };
 
     // basic command line processing
@@ -738,6 +741,55 @@ zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 				ckfree(cmdName);
 			}
 			break;
+		}
+
+		case OPT_DEBUG_LEVEL:
+		{
+			int zooLogLevel = 0;
+			int subOption = 0;
+			static CONST char *subOptions[] = {
+				"error",
+				"warn",
+				"info",
+				"debug",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_ERROR,
+				SUBOPT_WARN,
+				SUBOPT_INFO,
+				SUBOPT_DEBUG
+			};
+
+
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "level");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "logLevel", TCL_EXACT, &subOption) != TCL_OK) {
+				return TCL_ERROR;
+			}
+			switch ((enum subOptions) subOption) {
+				case SUBOPT_ERROR:
+					zooLogLevel = ZOO_LOG_LEVEL_ERROR;
+					break;
+
+				case SUBOPT_WARN:
+					zooLogLevel = ZOO_LOG_LEVEL_WARN;
+					break;
+
+				case SUBOPT_INFO:
+					zooLogLevel = ZOO_LOG_LEVEL_INFO;
+					break;
+
+				case SUBOPT_DEBUG:
+					zooLogLevel = ZOO_LOG_LEVEL_DEBUG;
+					break;
+			}
+
+			zoo_set_debug_level (zooLogLevel);
 		}
 
 	}

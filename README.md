@@ -53,7 +53,10 @@ Overview
 
 ```tcl
 package require zookeeper
+
+zookeeper::zookeeper debug_level debug
 ```
+debug level can be debug, info, warn or error.
 
 zookeeper init hosts
 
