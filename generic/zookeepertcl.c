@@ -261,6 +261,7 @@ zookeepertcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
 	// NB this needs to be spruced up to set errorCode and a
 	// better error message and stuff
 	Tcl_SetObjResult (interp, Tcl_NewStringObj (stateString, -1));
+	Tcl_SetErrorCode(interp, "ZOOKEEPER", stateString, (char *) NULL);
 	return TCL_ERROR;
 }
 
