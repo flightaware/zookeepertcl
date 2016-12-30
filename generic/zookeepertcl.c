@@ -252,10 +252,11 @@ int zookeepertcl_stat_to_array (Tcl_Interp *interp, char *arrayName, struct Stat
  *--------------------------------------------------------------
  */
 int
-zookeepertcl_set_tcl_return_code (int status) {
+zookeepertcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
 	if (status == ZOK) {
 		return TCL_OK;
 	}
+	const char *stateString = zookeepertcl_error_to_code_string (status);
 
 	// NB this needs to be spruced up to set errorCode and a
 	// better error message and stuff
@@ -284,12 +285,7 @@ zookeepertcl_zookeeperObjectDelete (ClientData clientData)
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
-	int status = zoopeeker_close (zo->zh);
-	if (status != ZOK) {
-		char *errorString = zookeepertcl_error_to_string (status);
-	}
-
-	// destroy stuff here
+	zookeeper_close (zo->zh);
     ckfree((char *)clientData);
 }
 
@@ -357,8 +353,10 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 {
     zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
 	ZOOAPI zhandle_t *zh = zo->zh;
+	int optIndex;
 
     static CONST char *options[] = {
+        "create",
         "exists",
         "delete",
         "state",
@@ -368,11 +366,25 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     };
 
     enum options {
+		OPT_CREATE,
 		OPT_EXISTS,
 		OPT_DELETE,
         OPT_STATE,
 		OPT_RECV_TIMEOUT,
 		OPT_IS_UNRECOVERABLE
+    };
+
+    static CONST char *subOptions[] = {
+        "-value",
+		"-ephemeral",
+		"-sequence",
+        NULL
+    };
+
+    enum subOptions {
+		SUBOPT_VALUE,
+		SUBOPT_EPHEMERAL,
+		SUBOPT_SEQUENCE
     };
 
     // basic command line processing
@@ -388,6 +400,58 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     }
 
     switch ((enum options) optIndex) {
+		case OPT_CREATE:
+		{
+			char *path;
+			int valueLen = -1;
+			char *value = NULL;
+			int flags = 0;
+
+			if (objc < 3)  {
+				Tcl_WrongNumArgs (interp, 2, objv, "path ?-value value? ?-ephemeral? ?-sequence?");
+				return TCL_ERROR;
+			}
+			path = Tcl_GetString (objv[2]);
+			int i;
+			int suboptIndex = 0;
+
+			for (i = 3; i < objc; i++) {
+				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+					TCL_EXACT, &suboptIndex) != TCL_OK) {
+					return TCL_ERROR;
+				}
+
+				switch ((enum subOptions) suboptIndex) {
+					case SUBOPT_VALUE:
+					{
+						if (i + 1 >= objc) {
+							Tcl_WrongNumArgs (interp, 2, objv, "-value value");
+							return TCL_ERROR;
+						}
+						value = Tcl_GetStringFromObj (objv[i++], &valueLen);
+					}
+
+					case SUBOPT_EPHEMERAL:
+					{
+						flags |= ZOO_EPHEMERAL;
+					}
+
+					case SUBOPT_SEQUENCE:
+					{
+						flags |= ZOO_SEQUENCE;
+					}
+				}
+			}
+
+			char returnPathBuf[1024*1024];
+
+			int status = zoo_create (zh, path, value, valueLen, NULL, flags, returnPathBuf, sizeof(returnPathBuf));
+			if (status == ZOK) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
+			}
+			return zookeepertcl_set_tcl_return_code (interp, status);
+		}
+
 		case OPT_EXISTS:
 		{
 			char *path;
@@ -411,7 +475,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 					return TCL_ERROR;
 				}
 			}
-			return zookeepertcl_set_tcl_return_code (status);
+			return zookeepertcl_set_tcl_return_code (interp, status);
 		}
 
 		case OPT_DELETE:
@@ -431,7 +495,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			}
 
 			int status = zoo_delete (zh, path, version);
-			return zookeepertcl_set_tcl_return_code (status);
+			return zookeepertcl_set_tcl_return_code (interp, status);
 		}
 
 		case OPT_STATE:
@@ -460,7 +524,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
 		case OPT_IS_UNRECOVERABLE:
 		{
-			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (is_recoverable (zh) == ZINVALIDSTATE));
+			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (is_unrecoverable (zh) == ZINVALIDSTATE));
 			break;
 		}
 	}
