@@ -58,6 +58,8 @@ zookeeper::zookeeper debug_level debug
 ```
 debug level can be debug, info, warn or error.
 
+zookeeper::zookeeper version returns C client version, like 3.4.6.
+
 zookeeper init hosts
 
 

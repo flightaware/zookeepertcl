@@ -654,9 +654,9 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 int
 zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
-    zookeepertcl_objectClientData *zo;
     int                 optIndex;
     char               *cmdName;
+	zookeepertcl_objectClientData *zo = NULL;
 
     static CONST char *options[] = {
         "init",
@@ -710,15 +710,21 @@ zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 				return TCL_ERROR;
 			}
 
-			// allocate one of our kafka client data objects for Tcl and configure it
-			zo = (zookeepertcl_objectClientData *)ckalloc (sizeof (zookeepertcl_objectClientData));
-			zo->zookeeper_object_magic = ZOOKEEPER_OBJECT_MAGIC;
-			zo->interp = interp;
-
 			char *cmdName = Tcl_GetString (objv[2]);
 			char *hosts = Tcl_GetString (objv[3]);
 
-			zo->zh = zookeeper_init (hosts, zookeepertcl_watcher, timeout, NULL, zo, 0);
+			zhandle_t *zh = zookeeper_init (hosts, zookeepertcl_watcher, timeout, NULL, zo, 0);
+			if (zh == NULL) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
+				return TCL_ERROR;
+			}
+
+			// allocate one of our kafka client data objects for Tcl and configure it
+			zo = (zookeepertcl_objectClientData *)ckalloc (sizeof (zookeepertcl_objectClientData));
+			zo->zh = zh;
+			zo->zookeeper_object_magic = ZOOKEEPER_OBJECT_MAGIC;
+			zo->interp = interp;
+
 			zoo_set_context (zo->zh, (void *)zo);
 
 			// if cmdName is #auto, generate a unique name for the object
