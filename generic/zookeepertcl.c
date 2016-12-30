@@ -363,9 +363,12 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
 	ZOOAPI zhandle_t *zh = zo->zh;
 	int optIndex;
+	struct Stat stat;
 
     static CONST char *options[] = {
         "get",
+        "get_children",
+		"set",
         "create",
         "exists",
         "delete",
@@ -377,6 +380,8 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
     enum options {
 		OPT_GET,
+		OPT_GET_CHILDREN,
+		OPT_SET,
 		OPT_CREATE,
 		OPT_EXISTS,
 		OPT_DELETE,
@@ -411,6 +416,59 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     }
 
     switch ((enum options) optIndex) {
+		case OPT_SET:
+		{
+			char *path;
+			char *buffer;
+			int bufferLen = 0;
+			int version = 0;
+
+			if (objc != 5) {
+				Tcl_WrongNumArgs (interp, 2, objv, "path data version");
+				return TCL_ERROR;
+			}
+
+			path = Tcl_GetString (objv[2]);
+			buffer = Tcl_GetStringFromObj (objv[3], &bufferLen);
+
+			if (Tcl_GetIntFromObj (interp, objv[4], &version) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+
+			int status = zoo_set (zh, path, buffer, bufferLen, version);
+			return zookeepertcl_set_tcl_return_code (interp, status);
+		}
+
+		case OPT_GET_CHILDREN:
+		{
+			char *path;
+			int watch = 0;
+			struct String_vector strings;
+			int i;
+
+			if (objc != 4) {
+				Tcl_WrongNumArgs (interp, 2, objv, "path watch");
+				return TCL_ERROR;
+			}
+
+			path = Tcl_GetString (objv[2]);
+			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+
+			int status = zoo_get_children (zh, path, watch, &strings);
+			if (status != ZOK) {
+				return zookeepertcl_set_tcl_return_code (interp, status);
+			}
+
+			for (i = 0; i < strings.count; i++) {
+				if (Tcl_ListObjAppendElement (interp, Tcl_GetObjResult (interp), Tcl_NewStringObj (strings.data[i], -1)) == TCL_ERROR) {
+					return TCL_ERROR;
+				}
+			}
+			return TCL_OK;
+		}
+
 		case OPT_GET:
 		{
 			char *path;
@@ -433,8 +491,13 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			if (status == ZOK) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
 			}
+
+			if (zookeepertcl_stat_to_array (interp, statArray, &stat) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
 			return zookeepertcl_set_tcl_return_code (interp, status);
 		}
+
 
 		case OPT_CREATE:
 		{
