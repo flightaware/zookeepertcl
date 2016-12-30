@@ -31,7 +31,13 @@ typedef struct zookeepertcl_objectClientData
 typedef struct zookeepertcl_callbackEvent
 {
     Tcl_Event event;
+	zookeepertcl_objectClientData *zo;
+	int zookeeperType;
+	int zookeeperState;
+	const char *path;
+	Tcl_Obj *commandObj;
 } zookeepertcl_callbackEvent;
 
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
+

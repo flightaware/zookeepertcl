@@ -12,6 +12,9 @@
 #include <assert.h>
 #include <stdlib.h>
 
+int
+zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags);
+
 /*
  *--------------------------------------------------------------
  *
@@ -270,15 +273,28 @@ zookeepertcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
  *
  * zookeepertcl_watcher -- watcher callback function
  *
+ * we can't call Tcl directly here because this has occurred
+ * asynchronously to whatever the interpreter is doing, so
+ * we queue an event to the interpreter instead.
+ *
  *--------------------------------------------------------------
  */
 void zookeepertcl_watcher (zhandle_t *zh, int type, int state, const char *path, void* context)
 {
-    zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)zoo_get_context (zh);
-	const char *typeString = zookeepertcl_type_to_string (type);
-	const char *stateString = zookeepertcl_state_to_string (state);
+	zookeepertcl_callbackEvent *evPtr;
 
-	printf("zookeepertcl_watcher called type '%s' state '%s' path '%s'\n", typeString, stateString, path);
+	evPtr = ckalloc (sizeof (zookeepertcl_callbackEvent));
+	evPtr->event.proc = zookeepertcl_EventProc;
+
+    evPtr->zo = (zookeepertcl_objectClientData *)zoo_get_context (zh);
+	evPtr->zookeeperType = type;
+	evPtr->zookeeperState = state;
+	evPtr->path = path;
+	evPtr->commandObj = (Tcl_Obj *)context;
+
+	Tcl_QueueEvent ((Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+
+	printf("zookeepertcl_watcher invoked; event queued\n");
 }
 
 /*
@@ -346,9 +362,95 @@ zookeepertcl_EventSetupProc (ClientData clientData, int flags) {
  */
 void
 zookeepertcl_EventCheckProc (ClientData clientData, int flags) {
-    zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
+    // zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
 
 }
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * zookeepertcl_EventProc --
+ *
+ *    this routine is called by the Tcl event handler to process
+ *    callbacks we have gotten from zookeeper
+ *
+ *    in our event structure we have the zookeeper type and state,
+ *    the path and the command.
+ *
+ * Results:
+ *    Returns 1 to say we handled the event and the dispatcher can delete it.
+ *
+ *----------------------------------------------------------------------
+ */
+int
+zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
+	zookeepertcl_callbackEvent *evPtr = (zookeepertcl_callbackEvent *)tevPtr;
+	Tcl_Interp *interp = evPtr->zo->interp;
+	int tclReturnCode;
+
+	int callbackListObjc;
+	Tcl_Obj **callbackListObjv;
+
+	int evalObjc;
+	Tcl_Obj **evalObjv;
+
+	// crack the command object.  it may be a list.
+	if (Tcl_ListObjGetElements (interp, evPtr->commandObj, &callbackListObjc, &callbackListObjv) == TCL_ERROR) {
+		Tcl_BackgroundError (interp);
+		return 1;
+	}
+
+	// construct callback argument as a list
+
+#define ZOOKEEPERTCL_CALLBACK_LISTCOUNT 6
+
+	Tcl_Obj *listObjv[ZOOKEEPERTCL_CALLBACK_LISTCOUNT];
+
+	listObjv[0] = Tcl_NewStringObj ("path", -1);
+	listObjv[1] = Tcl_NewStringObj (evPtr->path, -1);
+
+	listObjv[2] = Tcl_NewStringObj ("type", -1);
+	listObjv[3] = Tcl_NewStringObj (zookeepertcl_type_to_string (evPtr->zookeeperType), -1);
+
+	listObjv[4] = Tcl_NewStringObj ("state", -1);
+	listObjv[5] = Tcl_NewStringObj (zookeepertcl_state_to_string (evPtr->zookeeperState), -1);
+
+	Tcl_Obj *listObj = Tcl_NewListObj (ZOOKEEPERTCL_CALLBACK_LISTCOUNT, listObjv);
+
+	// construct a new list with the command containing as many elements
+	// as it needs and the argument list as its final argument
+
+	evalObjc = callbackListObjc + 1;
+	evalObjv = (Tcl_Obj **)ckalloc (sizeof (Tcl_Obj *) * evalObjc);
+
+	int i;
+
+	for (i = 0; i < callbackListObjc; i++) {
+		evalObjv[i] = callbackListObjv[i];
+		Tcl_IncrRefCount (evalObjv[i]);
+	}
+
+	evalObjv[evalObjc - 1] = listObj;
+	Tcl_IncrRefCount (listObj);
+
+	tclReturnCode = Tcl_EvalObjv (interp, evalObjc, evalObjv, (TCL_EVAL_GLOBAL|TCL_EVAL_DIRECT));
+
+	// if we got a Tcl error, since we initiated the event, it doesn't
+	// have anything to traceback further from here to, we must initiate
+	// a background error, which will generally cause the bgerror proc
+	// to get invoked
+	if (tclReturnCode == TCL_ERROR) {
+		Tcl_BackgroundError (interp);
+	}
+
+	for (i = 0; i < evalObjc; i++) {
+		Tcl_DecrRefCount (evalObjv[i]);
+	}
+
+	ckfree ((char *)evalObjv);
+	return 1;
+}
+
 
 /*
  *----------------------------------------------------------------------
@@ -457,6 +559,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 						}
 						callbackObj = objv[++i];
 						Tcl_IncrRefCount (callbackObj);
+						break;
 					}
 
 					case SUBOPT_STAT:
@@ -467,6 +570,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 						}
 						statArray = Tcl_GetString (objv[++i]);
 						stat = &statBuf;
+						break;
 					}
 				}
 			}
