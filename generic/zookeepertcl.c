@@ -410,6 +410,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			int watch = 0;
 			char buffer[1024*1024];
 			int bufferLen = sizeof(buffer);
+			watcher_fn wfn = NULL;
 
 			if (objc != 5) {
 				Tcl_WrongNumArgs (interp, 2, objv, "path watch statArrayName");
@@ -422,7 +423,11 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			}
 			char *statArray = Tcl_GetString (objv[4]);
 
-			int status = zoo_get (zh, path, watch, buffer, &bufferLen, NULL);
+			if (watch) {
+				wfn = zookeepertcl_watcher;
+			}
+
+			int status = zoo_wget (zh, path, wfn, NULL, buffer, &bufferLen, NULL);
 			if (status == ZOK) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
 			}
@@ -439,6 +444,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			int watch = 0;
 			struct String_vector strings;
 			int i;
+			watcher_fn wfn = NULL;
 
 			if (objc != 4) {
 				Tcl_WrongNumArgs (interp, 2, objv, "path watch");
@@ -449,8 +455,11 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
 				return TCL_ERROR;
 			}
+			if (watch) {
+				wfn = zookeepertcl_watcher;
+			}
 
-			int status = zoo_get_children (zh, path, watch, &strings);
+			int status = zoo_wget_children (zh, path, wfn, NULL, &strings);
 			if (status != ZOK) {
 				return zookeepertcl_set_tcl_return_code (interp, status);
 			}
@@ -556,6 +565,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			char *path;
 			int watch = 0;
 			struct Stat stat;
+			watcher_fn wfn = NULL;
 
 			if (objc != 5) {
 				Tcl_WrongNumArgs (interp, 2, objv, "path watch statArrayName");
@@ -566,9 +576,12 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
 				return TCL_ERROR;
 			}
+			if (watch) {
+				wfn = zookeepertcl_watcher;
+			}
 			char *statArray = Tcl_GetString (objv[4]);
 
-			int status = zoo_exists (zh, path, watch, &stat);
+			int status = zoo_wexists (zh, path, wfn, NULL, &stat);
 			if (status == ZOK || status == ZNONODE) {
 				if (zookeepertcl_stat_to_array (interp, statArray, &stat) == TCL_ERROR) {
 					return TCL_ERROR;
