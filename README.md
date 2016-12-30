@@ -60,7 +60,13 @@ debug level can be debug, info, warn or error.
 
 zookeeper::zookeeper version returns C client version, like 3.4.6.
 
-zookeeper init hosts
+set handle [zookeeper init #auto localhost:2181 50000]
+zookeeper init myzoo localhost:2181 50000
+
+set realID [$handle create /k -value woof -ephemeral]
+foo get $realID 0 z
+
+
 
 
 FlightAware

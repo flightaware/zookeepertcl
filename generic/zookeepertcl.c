@@ -570,10 +570,12 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			char *statArray = Tcl_GetString (objv[4]);
 
 			int status = zoo_exists (zh, path, watch, &stat);
-			if (status == ZOK) {
+			if (status == ZOK || status == ZNONODE) {
 				if (zookeepertcl_stat_to_array (interp, statArray, &stat) == TCL_ERROR) {
 					return TCL_ERROR;
 				}
+				Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
+				return TCL_OK;
 			}
 			return zookeepertcl_set_tcl_return_code (interp, status);
 		}
