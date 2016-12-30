@@ -528,7 +528,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 							Tcl_WrongNumArgs (interp, 2, objv, "-value value");
 							return TCL_ERROR;
 						}
-						value = Tcl_GetStringFromObj (objv[i++], &valueLen);
+						value = Tcl_GetStringFromObj (objv[++i], &valueLen);
 					}
 
 					case SUBOPT_EPHEMERAL:
@@ -545,7 +545,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
 			char returnPathBuf[1024*1024];
 
-			int status = zoo_create (zh, path, value, valueLen, NULL, flags, returnPathBuf, sizeof(returnPathBuf));
+			int status = zoo_create (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, returnPathBuf, sizeof(returnPathBuf));
 			if (status == ZOK) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
 			}
