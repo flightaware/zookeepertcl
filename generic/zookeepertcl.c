@@ -356,6 +356,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 	int optIndex;
 
     static CONST char *options[] = {
+        "get",
         "create",
         "exists",
         "delete",
@@ -366,6 +367,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     };
 
     enum options {
+		OPT_GET,
 		OPT_CREATE,
 		OPT_EXISTS,
 		OPT_DELETE,
@@ -400,6 +402,31 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     }
 
     switch ((enum options) optIndex) {
+		case OPT_GET:
+		{
+			char *path;
+			int watch = 0;
+			char buffer[1024*1024];
+			int bufferLen = sizeof(buffer);
+
+			if (objc != 5) {
+				Tcl_WrongNumArgs (interp, 2, objv, "path watch statArrayName");
+				return TCL_ERROR;
+			}
+
+			path = Tcl_GetString (objv[2]);
+			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+			char *statArray = Tcl_GetString (objv[4]);
+
+			int status = zoo_get (zh, path, watch, buffer, &bufferLen, NULL);
+			if (status == ZOK) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+			}
+			return zookeepertcl_set_tcl_return_code (interp, status);
+		}
+
 		case OPT_CREATE:
 		{
 			char *path;
