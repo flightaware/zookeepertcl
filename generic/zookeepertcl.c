@@ -29,19 +29,19 @@
 const char *zookeepertcl_state_to_string (int state)
 {
 	if (state == 0)
-		return "CLOSED";
+		return "closed";
 	if (state == ZOO_CONNECTING_STATE)
-		return "CONNECTING";
+		return "connecting";
 	if (state == ZOO_ASSOCIATING_STATE)
-		return "ASSOCIATING";
+		return "associating";
 	if (state == ZOO_CONNECTED_STATE)
-		return "CONNECTED";
+		return "connected";
 	if (state == ZOO_EXPIRED_SESSION_STATE)
-		return "EXPIRED";
+		return "expired";
 	if (state == ZOO_AUTH_FAILED_STATE)
-		return "AUTH_FAILED";
+		return "auth_failed";
 
-	return "INVALID";
+	return "invalid";
 }
 
 /*
@@ -61,19 +61,19 @@ const char *zookeepertcl_state_to_string (int state)
 const char *zookeepertcl_type_to_string (int state)
 {
 	if (state == ZOO_CREATED_EVENT)
-		return "CREATED_EVENT";
+		return "created";
 	if (state == ZOO_DELETED_EVENT)
-		return "DELETED_EVENT";
+		return "deleted";
 	if (state == ZOO_CHANGED_EVENT)
-		return "CHANGED_EVENT";
+		return "changed";
 	if (state == ZOO_CHILD_EVENT)
-		return "CHILD_EVENT";
+		return "child";
 	if (state == ZOO_SESSION_EVENT)
-		return "SESSION_EVENT";
+		return "session";
 	if (state == ZOO_NOTWATCHING_EVENT)
-		return "NOTWATCHING_EVENT";
+		return "not_watching";
 
-	return "UNKNOWN_EVENT_TYPE";
+	return "invalid";
 }
 
 
