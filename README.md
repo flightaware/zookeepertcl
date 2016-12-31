@@ -58,55 +58,92 @@ zookeeper::zookeeper debug_level debug
 ```
 debug level can be debug, info, warn or error.
 
-zookeeper::zookeeper version returns C client version, like 3.4.6.
+`zookeeper::zookeeper version`` returns the version of the C client, like **3.4.6**.  (The version of zookeeper Tcl can always be determined using `package require zookeeper` or one of various other Tcl package methods.)
 
+```tcl
 set zk [zookeeper init #auto localhost:2181 50000]
-zookeeper init zk localhost:2181 50000
+```
 
-set realID [$zk create /k -value woof -ephemeral]
-$zk get $realID 0 z
+In the "#auto" style, when `zookeeper init` is invoked, a new zookeeper object is created with a unique, generated name... something like *zookeeper0* and you use it by saving a reference to it in a variable or whatever.  In this style we invoke methods on the zookeeper object using **$zk**.
 
-This creates an ephemeral (for the life of the process) node on zookeeper.  You have to use the ID returned because it may be different from the one you pass in.  Like /k becomes /k00000000.  (I think this change only occurs if -ephemeral or -sequence is used.)
+```tcl
+zookeeper::zookeeper init zk localhost:2181 50000
+```
 
-$zk create path ?-value value? ?-ephemeral? ?-sequence?
+In the explicitly named style, in place of **#auto** you provide the name of the command, in this case, **zk**.
 
-Create the path.  Value, if provided, is set as the value at the path else the node's value is left as null.  "-ephemeral" makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If "-sequence" is provided, a unique monotonically increasing sequence number is appended to the pathname.
+Creating a node is simple...
 
-$zk get $path ?-watch code? ?-stat array?
+```tcl
+zk create /test -value woof
+```
 
-Get the data at node $path.  A watch is set if -watch is specified and code is invoked with an argument of a list of key-value pairs about the watched object.  If -stat is specified, array is the name of an array that is filled with stat data such as version.
+Option switches provide additional capabilities.
 
-$zk exists path ?-watch code? ?-stat arrayName?
+```tcl
+set node [zk create /k -value woof -ephemeral]
+zk get $node 0 z
+```
 
-Return 1 if the path exists and 0 if it doesn't.  -watch and -stat are the same as for "get" above.
+This creates, sets, and fetches the contents of an *ephemeral node* that only lasts for the life of the process, on zookeeper.  You need to use the node ID returned in place of the one you specified the name of the node is altered by zookeeper based on what you asked for.  Like /k becomes /k00000000.  (I think this change only occurs if -ephemeral or -sequence is used.)
 
-$zk children path
+```tcl
+zk create path ?-value value? ?-ephemeral? ?-sequence?
+```
 
-Return a list of the child znodes of the given path.
+Create the path.  Value, if provided, is set as the value at the path else the node's value is left as null.  **-ephemeral** makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If **-sequence** is provided, a unique monotonically increasing sequence number is appended to the pathname.  This can be very handy for the kinds of things zookeeper is typically used for.  Please investigate general zookeeper documentation for more details.
+
+```tcl
+zk get $path ?-watch code? ?-stat array?
+```
+
+Get the data at node *$path*.  A watch is set if **-watch** is specified; code is invoked when the node is changed, with an argument of a list of key-value pairs about the watched object.  If **-stat** is specified, *array* is the name of an array that is filled with stat data such as *version* and some other stuff.
+
+```tcl
+zk exists path ?-watch code? ?-stat arrayName?
+```
+
+Return 1 if the path exists and 0 if it doesn't.  **-watch** and **-stat** are the same as for **get** above.
+
+```tcl
+zk children path
+```
+
+Return a Tcl list of the names of the child znodes of the given path.
 
 (The C API supports adding a watch with this call but we currently do not.)
 
-$zk set $path $data $version
+```tcl
+zk set $path $data $version
+```
 
-Set the given path to the given data. Version must match or be -1 to bypass the version check.
+Set the znode at the given path to contain the specified data. Version must match or be **-1** which bypasses the version check.  It is a best practice to use the versioning.
 
-Zookeeper supports null data so if we are to support this properly, i.e. out of band, well we need to make providing data optional and set it to null and we already have done that, so we're half way.  But now we have to make a way for "get" to provide an out of band result, like having it return 1 or 0 and store the results into a variable provided through an argument.
+Zookeeper supports null data for any znode, and we have only half-implmeneted that for out-of-band detection.  We properly make providing data optional in *set* and *create*, and we set the data in the znode to null properly.  But to close the loop we have to make a way for *get* to provide an out-of-band result, like having it return 1 or 0 and store the results into a variable passed through an argument or something like that.
 
-$zk delete path version
+```tcl
+zk delete path version
+```
 
-Delete the path on zookeeper server.  Version must be the right version number in accordance with normal zookeeper rules.  In accordance with that, if -1 is used the version check will not take place.
+Delete the path on zookeeper server.  Version must be the right version number in accordance with normal zookeeper rules.  Following the same, if **-1** is used as the version number the version check will not be performed by zookeeper.
 
-$zk state
+```tcl
+zk state
+```
 
-This returns the state of the zookeeper session.  It can be CLOSED, CONNECTING, ASSOCIATING, CONNECTED, EXPIRED, or AUTH_FAILED.
+This returns the state of the zookeeper session.  It can be **closed**, **connecting**, **associating**, **connected**, **expired**, OR **auth_failed**.
 
+```tcl
 $zk recv_timeout
+```
 
-This returns the timeout for the session.  It's only valid if the state is connected.  zookeeper C API docs say the value may change after a server reconnect.
+This returns the timeout for the session, in milliseconds.  It's only valid if the state is connected.  zookeeper C API docs say the value may change after a server reconnect.
 
+```tcl
 $zk is_unrecoverable
+```
 
-return true if the zookeeper C library says the connection state can't be recovered.
+Return true if the zookeeper C library says the connection state can't be recovered.
 
 If this returns true then the application must close the zhandle object and try to reconnect.
 
