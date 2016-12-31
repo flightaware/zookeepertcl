@@ -292,10 +292,9 @@ void zookeepertcl_watcher (zhandle_t *zh, int type, int state, const char *path,
 	evPtr->path = path;
 	evPtr->commandObj = (Tcl_Obj *)context;
 
-	// Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
-	Tcl_QueueEvent ((Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 
-	printf("zookeepertcl_watcher invoked type '%s' state '%s' path '%s'; event queued\n", zookeepertcl_type_to_string (type), zookeepertcl_state_to_string (state), path);
+	// printf("**** zookeepertcl_watcher invoked type '%s' state '%s' path '%s' command '%s'; event queued\n", zookeepertcl_type_to_string (type), zookeepertcl_state_to_string (state), path, Tcl_GetString (evPtr->commandObj));
 }
 
 /*
@@ -340,7 +339,7 @@ zookeepertcl_zookeeperObjectDelete (ClientData clientData)
  */
 void
 zookeepertcl_EventSetupProc (ClientData clientData, int flags) {
-	Tcl_Time time = {0, 100000};
+	Tcl_Time time = {0, 500000};
 
 	Tcl_SetMaxBlockTime (&time);
 }
@@ -358,7 +357,7 @@ zookeepertcl_EventSetupProc (ClientData clientData, int flags) {
 void
 zookeepertcl_EventCheckProc (ClientData clientData, int flags) {
     // zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
-
+	// printf("event check proc\n");
 }
 
 /*
@@ -390,9 +389,11 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	int evalObjc;
 	Tcl_Obj **evalObjv;
 
-	printf("zookeepertcl_EventProc invoked\n");
+	// printf("zookeepertcl_EventProc invoked\n");
 
-	// crack the command object.  it may be a list.
+	// crack the command object.  it may be a list of multiple elements
+	// and we want that to work, like it could be an object and a method or
+	// something.
 	if (Tcl_ListObjGetElements (interp, evPtr->commandObj, &callbackListObjc, &callbackListObjv) == TCL_ERROR) {
 		Tcl_BackgroundError (interp);
 		return 1;
@@ -407,8 +408,8 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	listObjv[0] = Tcl_NewStringObj ("path", -1);
 	listObjv[1] = Tcl_NewStringObj (evPtr->path, -1);
 
-	Tcl_Obj *commandObj = NULL;
 	listObjv[2] = Tcl_NewStringObj ("command", -1);
+	Tcl_Obj *commandObj = Tcl_NewObj();
 	Tcl_GetCommandFullName (interp, zo->cmdToken, commandObj);
 	listObjv[3] = commandObj;
 
@@ -883,7 +884,9 @@ zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			char *cmdName = Tcl_GetString (objv[2]);
 			char *hosts = Tcl_GetString (objv[3]);
 
-			zhandle_t *zh = zookeeper_init (hosts, zookeepertcl_watcher, timeout, NULL, zo, 0);
+			// zhandle_t *zh = zookeeper_init (hosts, zookeepertcl_watcher, timeout, NULL, zo, 0);
+			zhandle_t *zh = zookeeper_init (hosts, NULL, timeout, NULL, zo, 0);
+
 			if (zh == NULL) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
 				return TCL_ERROR;
