@@ -516,6 +516,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
     }
 
     switch ((enum options) optIndex) {
+		case OPT_EXISTS:
 		case OPT_GET:
 		{
 			static CONST char *subOptions[] = {
@@ -583,9 +584,19 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 				wfn = zookeepertcl_watcher;
 			}
 
-			int status = zoo_wget (zh, path, wfn, (void *)callbackObj, buffer, &bufferLen, stat);
-			if (status == ZOK) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+			int status;
+
+			if ((enum options) optIndex == OPT_GET) {
+				status = zoo_wget (zh, path, wfn, (void *)callbackObj, buffer, &bufferLen, stat);
+				if (status == ZOK) {
+					Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+				}
+			} else {
+				status = zoo_wexists (zh, path, wfn, (void *)callbackObj, stat);
+				if (status == ZOK || status == ZNONODE) {
+					Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
+					status = ZOK; // ZNONODE would be an error below but it's ok here
+				}
 			}
 
 			if (stat != NULL && zookeepertcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
@@ -712,39 +723,6 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			int status = zoo_create (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, returnPathBuf, sizeof(returnPathBuf));
 			if (status == ZOK) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
-			}
-			return zookeepertcl_set_tcl_return_code (interp, status);
-		}
-
-		case OPT_EXISTS:
-		{
-			char *path;
-			int watch = 0;
-			struct Stat stat;
-			watcher_fn wfn = NULL;
-
-			if (objc != 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path watch statArrayName");
-				return TCL_ERROR;
-			}
-
-			path = Tcl_GetString (objv[2]);
-			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
-
-			if (watch) {
-				wfn = zookeepertcl_watcher;
-			}
-			char *statArray = Tcl_GetString (objv[4]);
-
-			int status = zoo_wexists (zh, path, wfn, NULL, &stat);
-			if (status == ZOK || status == ZNONODE) {
-				if (zookeepertcl_stat_to_array (interp, statArray, &stat) == TCL_ERROR) {
-					return TCL_ERROR;
-				}
-				Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
-				return TCL_OK;
 			}
 			return zookeepertcl_set_tcl_return_code (interp, status);
 		}
