@@ -30,16 +30,27 @@ typedef struct zookeepertcl_objectClientData
 	Tcl_Channel channel;
 } zookeepertcl_objectClientData;
 
+enum zookeepertcl_CallbackType {WATCHER, DATA};
+
 typedef struct zookeepertcl_callbackEvent
 {
     Tcl_Event event;
 	zookeepertcl_objectClientData *zo;
-	int zookeeperType;
-	int zookeeperState;
-	const char *path;
 	Tcl_Obj *commandObj;
+	enum zookeepertcl_CallbackType callbackType;
+	union {
+		struct {
+			int type;
+			int state;
+			const char *path;
+		} watcher;
+		struct {
+			Tcl_Obj *dataObj;
+			struct Stat stat;
+			zookeepertcl_objectClientData *zo;
+		} data;
+	};
 } zookeepertcl_callbackEvent;
-
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
 

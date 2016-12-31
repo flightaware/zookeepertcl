@@ -271,6 +271,35 @@ zookeepertcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
 /*
  *--------------------------------------------------------------
  *
+ * zookeepertcl_data_completion_callback -- data completion callback function
+ *
+ * we can't call Tcl directly here because this has occurred
+ * asynchronously to whatever the interpreter is doing, so
+ * we queue an event to the interpreter instead.
+ *
+ *--------------------------------------------------------------
+ */
+void
+zookeepertcl_data_completion_callback (int rc, const char *value, int valueLen, const struct Stat *stat, const void *context)
+{
+	zookeepertcl_callbackEvent *evPtr;
+
+	evPtr = ckalloc (sizeof (zookeepertcl_callbackEvent));
+	evPtr->event.proc = zookeepertcl_EventProc;
+
+	evPtr->callbackType = DATA;
+	evPtr->commandObj = (Tcl_Obj *)context;
+
+	evPtr->data.dataObj = Tcl_NewStringObj (value, valueLen);
+	evPtr->data.stat = *stat;
+    evPtr->data.zo = (zookeepertcl_objectClientData *)zoo_get_context (zh);
+
+	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
  * zookeepertcl_watcher -- watcher callback function
  *
  * we can't call Tcl directly here because this has occurred
@@ -286,11 +315,13 @@ void zookeepertcl_watcher (zhandle_t *zh, int type, int state, const char *path,
 	evPtr = ckalloc (sizeof (zookeepertcl_callbackEvent));
 	evPtr->event.proc = zookeepertcl_EventProc;
 
+	evPtr->callbackType = WATCHER;
     evPtr->zo = (zookeepertcl_objectClientData *)zoo_get_context (zh);
-	evPtr->zookeeperType = type;
-	evPtr->zookeeperState = state;
-	evPtr->path = path;
 	evPtr->commandObj = (Tcl_Obj *)context;
+
+	evPtr->watcher.type = type;
+	evPtr->watcher.state = state;
+	evPtr->watcher.path = path;
 
 	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 
@@ -519,7 +550,7 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	Tcl_Obj *listObjv[ZOOKEEPERTCL_CALLBACK_LISTCOUNT];
 
 	listObjv[0] = Tcl_NewStringObj ("path", -1);
-	listObjv[1] = Tcl_NewStringObj (evPtr->path, -1);
+	listObjv[1] = Tcl_NewStringObj (evPtr->watcher.path, -1);
 
 	listObjv[2] = Tcl_NewStringObj ("zk", -1);
 	Tcl_Obj *commandObj = Tcl_NewObj();
@@ -527,10 +558,10 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	listObjv[3] = commandObj;
 
 	listObjv[4] = Tcl_NewStringObj ("type", -1);
-	listObjv[5] = Tcl_NewStringObj (zookeepertcl_type_to_string (evPtr->zookeeperType), -1);
+	listObjv[5] = Tcl_NewStringObj (zookeepertcl_type_to_string (evPtr->watcher.type), -1);
 
 	listObjv[6] = Tcl_NewStringObj ("state", -1);
-	listObjv[7] = Tcl_NewStringObj (zookeepertcl_state_to_string (evPtr->zookeeperState), -1);
+	listObjv[7] = Tcl_NewStringObj (zookeepertcl_state_to_string (evPtr->watcher.state), -1);
 
 	Tcl_Obj *listObj = Tcl_NewListObj (ZOOKEEPERTCL_CALLBACK_LISTCOUNT, listObjv);
 
@@ -635,12 +666,14 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 		{
 			static CONST char *subOptions[] = {
 				"-watch",
+				"-async",
 				"-stat",
 				NULL
 			};
 
 			enum subOptions {
 				SUBOPT_WATCH,
+				SUBOPT_ASYNC,
 				SUBOPT_STAT
 			};
 
@@ -660,7 +693,8 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
 			int i;
 			int suboptIndex = 0;
-			Tcl_Obj *callbackObj = NULL;
+			Tcl_Obj *watcherCallbackObj = NULL;
+			Tcl_Obj *dataCallbackObj = NULL;
 			char *statArray = NULL;
 
 			for (i = 3; i < objc; i++) {
@@ -676,8 +710,19 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 							Tcl_WrongNumArgs (interp, 2, objv, "-watch code");
 							return TCL_ERROR;
 						}
-						callbackObj = objv[++i];
-						Tcl_IncrRefCount (callbackObj);
+						watcherCallbackObj = objv[++i];
+						Tcl_IncrRefCount (watcherCallbackObj);
+						break;
+					}
+
+					case SUBOPT_ASYNC:
+					{
+						if (i + 1 >= objc) {
+							Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+							return TCL_ERROR;
+						}
+						dataCallbackObj = objv[++i];
+						Tcl_IncrRefCount (dataCallbackObj);
 						break;
 					}
 
@@ -694,19 +739,23 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 				}
 			}
 
-			if (callbackObj != NULL) {
+			if (watcherCallbackObj != NULL) {
 				wfn = zookeepertcl_watcher;
 			}
 
 			int status;
 
 			if ((enum options) optIndex == OPT_GET) {
-				status = zoo_wget (zh, path, wfn, (void *)callbackObj, buffer, &bufferLen, stat);
-				if (status == ZOK) {
-					Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+				if (dataCallbackObj != NULL) {
+					status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zookeepertcl_data_completion_callback, dataCallbackObj);
+				} else {
+					status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
+					if (status == ZOK) {
+						Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+					}
 				}
 			} else {
-				status = zoo_wexists (zh, path, wfn, (void *)callbackObj, stat);
+				status = zoo_wexists (zh, path, wfn, (void *)watcherCallbackObj, stat);
 				if (status == ZOK || status == ZNONODE) {
 					Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
 					status = ZOK; // ZNONODE would be an error below but it's ok here
