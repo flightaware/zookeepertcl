@@ -72,27 +72,19 @@ $zk create path ?-value value? ?-ephemeral? ?-sequence?
 
 Create the path.  Value, if provided, is set as the value at the path else the node's value is left as null.  "-ephemeral" makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If "-sequence" is provided, a unique monotonically increasing sequence number is appended to the pathname.
 
-$zk get $path $watch arrayName
+$zk get $path ?-watch code? ?-stat array?
 
-Get the data at node $path.  Watch is 0 to not set up a watch and 1 to set one up.  arrayName is the name of an array to receive the stat array.
+Get the data at node $path.  A watch is set if -watch is specified and code is invoked with an argument of a list of key-value pairs about the watched object.  If -stat is specified, array is the name of an array that is filled with stat data such as version.
 
-Needs to be reworked with optional arguments as "create" has been.  Want it to become
-$zk get $path ?-watch code? ?-stat arrayName?
-#$zk get $path -watch "watch_function $zk otherstuff"
-
-$zk exists path watch statArrayName
-
-Return 1 if the path exists and 0 if it doesn't.  watch must be 0 or 1.  statArrayName is the name of an array to receive the status fields.
-
-This needs reworking with switch parameters as for "create".
 $zk exists path ?-watch code? ?-stat arrayName?
 
-$zk get_children path watch
+Return 1 if the path exists and 0 if it doesn't.  -watch and -stat are the same as for "get" above.
+
+$zk get_children path
 
 Return a list of the child znodes of the given path.
-To become $zk get_children path ?-watch code?
 
-Watch of 1 sets up a watch.  Also needs to be an optional parameter.
+(The C API supports adding a watch with this call but we currently do not.)
 
 $zk set $path $data $version
 

@@ -147,6 +147,7 @@ SHARED_BUILD	= @SHARED_BUILD@
 # NB fix the configure script o do this the right way
 ZOOKEEPERINCLUDES=-I"/usr/local/include"
 ZOOKEEPERLIBS="-L/usr/local/lib" -lzookeeper_mt
+#ZOOKEEPERLIBS="-L/usr/local/lib" -lzookeeper_st
 
 INCLUDES	= @PKG_INCLUDES@ @TCL_INCLUDES@ $(ZOOKEEPERINCLUDES)
 #INCLUDES	= @PKG_INCLUDES@ @TCL_INCLUDES@ @TK_INCLUDES@ @TK_XINCLUDES@

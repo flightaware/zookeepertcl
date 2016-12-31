@@ -408,7 +408,7 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	listObjv[0] = Tcl_NewStringObj ("path", -1);
 	listObjv[1] = Tcl_NewStringObj (evPtr->path, -1);
 
-	listObjv[2] = Tcl_NewStringObj ("command", -1);
+	listObjv[2] = Tcl_NewStringObj ("zk", -1);
 	Tcl_Obj *commandObj = Tcl_NewObj();
 	Tcl_GetCommandFullName (interp, zo->cmdToken, commandObj);
 	listObjv[3] = commandObj;
@@ -608,25 +608,16 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 		case OPT_GET_CHILDREN:
 		{
 			char *path;
-			int watch = 0;
 			struct String_vector strings;
 			int i;
-			watcher_fn wfn = NULL;
 
-			if (objc != 4) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path watch");
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "path");
 				return TCL_ERROR;
 			}
 
 			path = Tcl_GetString (objv[2]);
-			if (Tcl_GetBooleanFromObj (interp, objv[3], &watch) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
-			if (watch) {
-				wfn = zookeepertcl_watcher;
-			}
-
-			int status = zoo_wget_children (zh, path, wfn, NULL, &strings);
+			int status = zoo_wget_children (zh, path, NULL, NULL, &strings);
 			if (status != ZOK) {
 				return zookeepertcl_set_tcl_return_code (interp, status);
 			}
