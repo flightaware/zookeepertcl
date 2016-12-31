@@ -88,13 +88,13 @@ Return a list of the child znodes of the given path.
 
 $zk set $path $data $version
 
-Set the given path to the given data. Version must match.
+Set the given path to the given data. Version must match or be -1 to bypass the version check.
 
 Zookeeper supports null data so if we are to support this properly, i.e. out of band, well we need to make providing data optional and set it to null and we already have done that, so we're half way.  But now we have to make a way for "get" to provide an out of band result, like having it return 1 or 0 and store the results into a variable provided through an argument.
 
 $zk delete path version
 
-Delete the path on zookeeper server.  Version must be the right version number in accordance with normal zookeeper rules.
+Delete the path on zookeeper server.  Version must be the right version number in accordance with normal zookeeper rules.  In accordance with that, if -1 is used the version check will not take place.
 
 $zk state
 
