@@ -480,7 +480,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
     static CONST char *options[] = {
         "get",
-        "get_children",
+        "children",
 		"set",
         "create",
         "exists",
@@ -493,7 +493,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
     enum options {
 		OPT_GET,
-		OPT_GET_CHILDREN,
+		OPT_CHILDREN,
 		OPT_SET,
 		OPT_CREATE,
 		OPT_EXISTS,
@@ -605,7 +605,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			return zookeepertcl_set_tcl_return_code (interp, status);
 		}
 
-		case OPT_GET_CHILDREN:
+		case OPT_CHILDREN:
 		{
 			char *path;
 			struct String_vector strings;

@@ -80,7 +80,7 @@ $zk exists path ?-watch code? ?-stat arrayName?
 
 Return 1 if the path exists and 0 if it doesn't.  -watch and -stat are the same as for "get" above.
 
-$zk get_children path
+$zk children path
 
 Return a list of the child znodes of the given path.
 
