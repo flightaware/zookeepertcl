@@ -100,13 +100,13 @@ zk get $path ?-watch code? ?-stat array?
 Get the data at node *$path*.  A watch is set if **-watch** is specified; code is invoked when the node is changed, with an argument of a list of key-value pairs about the watched object.  If **-stat** is specified, *array* is the name of an array that is filled with stat data such as *version* and some other stuff.
 
 ```tcl
-zk exists path ?-watch code? ?-stat arrayName?
+zk exists path ?-watch code? ?-stat array?
 ```
 
 Return 1 if the path exists and 0 if it doesn't.  **-watch** and **-stat** are the same as for **get** above.
 
 ```tcl
-zk children path
+zk children $path
 ```
 
 Return a Tcl list of the names of the child znodes of the given path.
@@ -122,7 +122,7 @@ Set the znode at the given path to contain the specified data. Version must matc
 Zookeeper supports null data for any znode, and we have only half-implmeneted that for out-of-band detection.  We properly make providing data optional in *set* and *create*, and we set the data in the znode to null properly.  But to close the loop we have to make a way for *get* to provide an out-of-band result, like having it return 1 or 0 and store the results into a variable passed through an argument or something like that.
 
 ```tcl
-zk delete path version
+zk delete $path $version
 ```
 
 Delete the path on zookeeper server.  Version must be the right version number in accordance with normal zookeeper rules.  Following the same, if **-1** is used as the version number the version check will not be performed by zookeeper.
@@ -134,13 +134,13 @@ zk state
 This returns the state of the zookeeper session.  It can be **closed**, **connecting**, **associating**, **connected**, **expired**, OR **auth_failed**.
 
 ```tcl
-$zk recv_timeout
+zk recv_timeout
 ```
 
 This returns the timeout for the session, in milliseconds.  It's only valid if the state is connected.  zookeeper C API docs say the value may change after a server reconnect.
 
 ```tcl
-$zk is_unrecoverable
+zk is_unrecoverable
 ```
 
 Return true if the zookeeper C library says the connection state can't be recovered.
