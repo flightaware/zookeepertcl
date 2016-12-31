@@ -295,7 +295,7 @@ void zookeepertcl_watcher (zhandle_t *zh, int type, int state, const char *path,
 	// Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 	Tcl_QueueEvent ((Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 
-	printf("zookeepertcl_watcher invoked; event queued\n");
+	printf("zookeepertcl_watcher invoked type '%s' state '%s' path '%s'; event queued\n", zookeepertcl_type_to_string (type), zookeepertcl_state_to_string (state), path);
 }
 
 /*
@@ -380,7 +380,8 @@ zookeepertcl_EventCheckProc (ClientData clientData, int flags) {
 int
 zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	zookeepertcl_callbackEvent *evPtr = (zookeepertcl_callbackEvent *)tevPtr;
-	Tcl_Interp *interp = evPtr->zo->interp;
+	zookeepertcl_objectClientData *zo = evPtr->zo;
+	Tcl_Interp *interp = zo->interp;
 	int tclReturnCode;
 
 	int callbackListObjc;
@@ -399,18 +400,23 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 
 	// construct callback argument as a list
 
-#define ZOOKEEPERTCL_CALLBACK_LISTCOUNT 6
+#define ZOOKEEPERTCL_CALLBACK_LISTCOUNT 8
 
 	Tcl_Obj *listObjv[ZOOKEEPERTCL_CALLBACK_LISTCOUNT];
 
 	listObjv[0] = Tcl_NewStringObj ("path", -1);
 	listObjv[1] = Tcl_NewStringObj (evPtr->path, -1);
 
-	listObjv[2] = Tcl_NewStringObj ("type", -1);
-	listObjv[3] = Tcl_NewStringObj (zookeepertcl_type_to_string (evPtr->zookeeperType), -1);
+	Tcl_Obj *commandObj = NULL;
+	listObjv[2] = Tcl_NewStringObj ("command", -1);
+	Tcl_GetCommandFullName (interp, zo->cmdToken, commandObj);
+	listObjv[3] = commandObj;
 
-	listObjv[4] = Tcl_NewStringObj ("state", -1);
-	listObjv[5] = Tcl_NewStringObj (zookeepertcl_state_to_string (evPtr->zookeeperState), -1);
+	listObjv[4] = Tcl_NewStringObj ("type", -1);
+	listObjv[5] = Tcl_NewStringObj (zookeepertcl_type_to_string (evPtr->zookeeperType), -1);
+
+	listObjv[6] = Tcl_NewStringObj ("state", -1);
+	listObjv[7] = Tcl_NewStringObj (zookeepertcl_state_to_string (evPtr->zookeeperState), -1);
 
 	Tcl_Obj *listObj = Tcl_NewListObj (ZOOKEEPERTCL_CALLBACK_LISTCOUNT, listObjv);
 
