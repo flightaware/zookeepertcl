@@ -27,6 +27,7 @@ typedef struct zookeepertcl_objectClientData
 	ZOOAPI zhandle_t *zh;
 	Tcl_ThreadId threadId;
 	Tcl_Command cmdToken;
+	Tcl_Channel channel;
 } zookeepertcl_objectClientData;
 
 typedef struct zookeepertcl_callbackEvent

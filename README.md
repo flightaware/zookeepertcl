@@ -147,6 +147,21 @@ Return true if the zookeeper C library says the connection state can't be recove
 
 If this returns true then the application must close the zhandle object and try to reconnect.
 
+Watch Callbacks
+---
+
+When a znode that is being watched has changed, the code that you specified is executed with an argument consisting of a list of key-value pairs suitable for putting into an array using `array get`.
+
+The list elements are **path** followed by the znode path, **zk** followed by the name of the zookeepertcl zookeeper command that was used to create the watch, **type** followed by the zookeeper type and **state** followed by the zookeeper state.
+
+State will be one of **closed**, **connecting**, **associating**, **connected**, **expired**, **auth_failed** and **unknown**.
+
+Type will be one of **created**, **deleted**, **changed**, **child**, **session**, **not_watching** or **unknown**.
+
+Errata
+---
+
+ACLs are not currently supported.
 
 FlightAware
 ---
