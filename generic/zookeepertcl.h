@@ -25,6 +25,7 @@ typedef struct zookeepertcl_objectClientData
     int zookeeper_object_magic;
     Tcl_Interp *interp;
 	ZOOAPI zhandle_t *zh;
+	Tcl_ThreadId threadId;
 	Tcl_Command cmdToken;
 } zookeepertcl_objectClientData;
 
