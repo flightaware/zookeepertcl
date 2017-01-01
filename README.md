@@ -158,10 +158,24 @@ State will be one of **closed**, **connecting**, **associating**, **connected**,
 
 Type will be one of **created**, **deleted**, **changed**, **child**, **session**, **not_watching** or **unknown**.
 
+Stat Structure
+---
+When requesting status using **-stat**, the specified array will be filled with the following elements:
+* czxid - the zxid of the change that caused this znode to be created.
+* mzxid - the zxid of the change that last modified this znode.
+* ctime - the time in milliseconds from epoch when this znode was created.
+* mtime - the time in milliseconds from epoch when this znode was last modified.
+* version - the number of changes to the data of this znode.
+* cversion - the number of changes to the children of this znode.
+* aversion - the number of changes to the ACL of this znode.
+* ephemeralOwner - the session id of the owner of this znode if the znode is an ephemeral node. If it is not an ephemeral node, it will be zero.
+* dataLength - the length of the data field of this znode.
+* numChildren - the number of children of this znode.
+
 Errata
 ---
 
-ACLs are not currently supported.
+* ACLs are not currently supported.
 
 FlightAware
 ---

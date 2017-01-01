@@ -6,3 +6,5 @@ configure
 pkgIndex.tcl
 *.o
 libzookeeper.so.*
+*.core
+*.swp
