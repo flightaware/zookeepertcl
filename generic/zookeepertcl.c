@@ -292,8 +292,20 @@ zootcl_data_completion_callback (int rc, const char *value, int valueLen, const 
 	evPtr->commandObj = ztc->callbackObj;
 
 	evPtr->data.rc = rc;
-	evPtr->data.dataObj = Tcl_NewStringObj (value, valueLen);
-	evPtr->data.stat = *stat;
+
+	// if value is NULL then there is no value associated with this znode
+	// we set to NULL and the other end (the event handler) will discriminate
+	if (value == NULL) {
+		evPtr->data.dataObj = NULL;
+	} else {
+		evPtr->data.dataObj = Tcl_NewStringObj (value, valueLen);
+	}
+
+	// structure copy status structure only if it exists
+	if (stat != NULL) {
+		evPtr->data.stat = *stat;
+	}
+
     evPtr->zo = ztc->zo;
 	ckfree(ztc);
 
@@ -431,7 +443,7 @@ zootcl_socket_ready (ClientData clientData, int mask)
 	}
 
 	int status = zookeeper_process (zo->zh, events);
-printf("zookeeper_process status %s\n", zootcl_error_to_code_string (status));
+printf("zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 
 	Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, clientData);
 }
@@ -439,32 +451,26 @@ printf("zookeeper_process status %s\n", zootcl_error_to_code_string (status));
 /*
  *----------------------------------------------------------------------
  *
- * zootcl_EventSetupProc --
+ * zootcl_EventCheckProc --
  *    This routine is a required argument to Tcl_CreateEventSource
  *
- *    Since we need to poll librdkafka to get events to fire, let's
- *    make sure we get called periodically
+ *    This is a function we pass to Tcl_CreateEventSource that is
+ *    invoked to see if any events have occurred and to queue them.
  *
+ *    We get our events from a channel handler so this function is empty.
  *
  * Results:
- *    Our polling routine will get called periodically.
  *
  *----------------------------------------------------------------------
  */
 void
-zootcl_EventSetupProc (ClientData clientData, int flags) {
-	Tcl_Time time = {0, 500000};
-
-	Tcl_SetMaxBlockTime (&time);
+zootcl_EventCheckProc (ClientData clientData, int flags) {
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * zootcl_EventCheckProc --
- *
- *    This is a function we pass to Tcl_CreateEventSource that is
- *    invoked to see if any events have occurred and to queue them.
+ * zootcl_EventSetupProc --
  *
  *    We used this opportunity to find out if zookeeper is interested in
  *    anything (i.e. has watches established or something) asynchronous
@@ -495,9 +501,8 @@ zootcl_EventSetupProc (ClientData clientData, int flags) {
  *----------------------------------------------------------------------
  */
 void
-zootcl_EventCheckProc (ClientData clientData, int flags) {
+zootcl_EventSetupProc (ClientData clientData, int flags) {
     zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
-{
 	int fd;
 	int interest;
 	struct timeval tv;
@@ -508,6 +513,7 @@ zootcl_EventCheckProc (ClientData clientData, int flags) {
 
 	// find out what zookeeper is interested in
 	int status = zookeeper_interest (zh, &fd, &interest, &tv);
+// printf("async check code %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 	if ((status != ZOK) && (status != ZNOTHING)) {
 		return;
 	}
@@ -515,11 +521,19 @@ zootcl_EventCheckProc (ClientData clientData, int flags) {
 	// if fd is -1 there is no connection
 	if (fd == -1) return;
 
-// printf("async check fd %d, interest %d, secs %d, usecs %d\n", fd, interest, tv.tv_sec, tv.tv_usec);
 
 	// convert the struct timeval time-until-zookeeper-wants-another-check
 	// to a Tcl_Time
 	Tcl_Time time = {tv.tv_sec, tv.tv_usec};
+
+	/*
+	tv.tv_usec -= 200000;
+	if (tv.tv_usec < 0) {
+		tv.tv_usec += 1000000;
+		tv.tv_sec--;
+	}
+	*/
+
 	Tcl_SetMaxBlockTime (&time);
 
 	// create Tcl read and write intereest flags based on
@@ -547,7 +561,6 @@ zootcl_EventCheckProc (ClientData clientData, int flags) {
 	}
 
 	Tcl_CreateChannelHandler (zo->channel, readOrWrite, zootcl_socket_ready, (ClientData)zo);
-}
 }
 
 /*
@@ -615,8 +628,14 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 		case DATA:
 			listObjv[element++] = Tcl_NewStringObj ("status", -1);
 			listObjv[element++] = Tcl_NewStringObj (zootcl_error_to_code_string (evPtr->data.rc), -1);
-			listObjv[element++] = Tcl_NewStringObj ("data", -1);
-			listObjv[element++] = evPtr->data.dataObj;
+
+			if (evPtr->data.dataObj != NULL) {
+				listObjv[element++] = Tcl_NewStringObj ("data", -1);
+				listObjv[element++] = evPtr->data.dataObj;
+
+				listObjv[element++] = Tcl_NewStringObj ("version", -1);
+				listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.version);
+			}
 	}
 
 	Tcl_Obj *listObj = Tcl_NewListObj (element, listObjv);

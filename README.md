@@ -76,7 +76,7 @@ In the explicitly named style, in place of **#auto** you provide the name of the
 
 If **-async** is specified, what follows next is a command that will be executed for general zookeeper callbacks.  While watches, asynchronous data requests, etc, have their own callbacks, this callback will tell you the state is connected and stuff like that.
 
-Creating a node is simple...
+Creating a znode is simple...
 
 ```tcl
 zk create /test -value woof
@@ -89,19 +89,21 @@ set node [zk create /k -value woof -ephemeral]
 zk get $node 0 z
 ```
 
-This creates, sets, and fetches the contents of an *ephemeral node* that only lasts for the life of the process, on zookeeper.  You need to use the node ID returned in place of the one you specified the name of the node is altered by zookeeper based on what you asked for.  Like /k becomes /k00000000.  (I think this change only occurs if -ephemeral or -sequence is used.)
+This creates, sets, and fetches the contents of an *ephemeral node* that only lasts for the life of the process, on zookeeper.  You need to use the znode ID returned in place of the one you specified the name of the znode is altered by zookeeper based on what you asked for.  Like /k becomes /k00000000.  (I think this change only occurs if -ephemeral or -sequence is used.)
 
 ```tcl
 zk create path ?-value value? ?-ephemeral? ?-sequence?
 ```
 
-Create the path.  Value, if provided, is set as the value at the path else the node's value is left as null.  **-ephemeral** makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If **-sequence** is provided, a unique monotonically increasing sequence number is appended to the pathname.  This can be very handy for the kinds of things zookeeper is typically used for.  Please investigate general zookeeper documentation for more details.
+Create the path.  Value, if provided, is set as the value at the path else the znode's value is left as null.  **-ephemeral** makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If **-sequence** is provided, a unique monotonically increasing sequence number is appended to the pathname.  This can be very handy for the kinds of things zookeeper is typically used for.  Please investigate general zookeeper documentation for more details.
 
 ```tcl
-zk get $path ?-watch code? ?-stat array?
+zk get $path ?-watch code? ?-stat array? ?-async code?
 ```
 
-Get the data at node *$path*.  A watch is set if **-watch** is specified; code is invoked when the node is changed, with an argument of a list of key-value pairs about the watched object.  If **-stat** is specified, *array* is the name of an array that is filled with stat data such as *version* and some other stuff.
+Get the data at znode *$path*.  A watch is set if **-watch** is specified; code is invoked when the znode is changed, with an argument of a list of key-value pairs about the watched object.  If **-stat** is specified, *array* is the name of an array that is filled with stat data such as *version* and some other stuff.
+
+If **-async** is specified, code is executed as a callback when the result has come in from zookeeper.  The callback will be invoked with an argument consisting of a Tcl list of key-value pairs.  The name of the zookeeper object will be in *zk*, the status (like *ZOK*), in status, and if there is data attached to the znode, the data as *data* and version as *version*.
 
 ```tcl
 zk exists path ?-watch code? ?-stat array?
@@ -172,7 +174,7 @@ When requesting status using **-stat**, the specified array will be filled with 
 * version - the number of changes to the data of this znode.
 * cversion - the number of changes to the children of this znode.
 * aversion - the number of changes to the ACL of this znode.
-* ephemeralOwner - the session id of the owner of this znode if the znode is an ephemeral node. If it is not an ephemeral node, it will be zero.
+* ephemeralOwner - the session id of the owner of this znode if the znode is an ephemeral znode. If it is not an ephemeral znode, it will be zero.
 * dataLength - the length of the data field of this znode.
 * numChildren - the number of children of this znode.
 
