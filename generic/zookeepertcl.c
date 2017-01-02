@@ -1,7 +1,7 @@
 /* -*- mode: c; tab-width: 4; indent-tabs-mode: t -*- */
 
 /*
- * zookeepertcl - Tcl interface to Apache Zookeeper
+ * zootcl - Tcl interface to Apache Zookeeper
  *
  * Copyright (C) 2016 - 2017 FlightAware LLC
  *
@@ -13,12 +13,12 @@
 #include <stdlib.h>
 
 int
-zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags);
+zootcl_EventProc (Tcl_Event *tevPtr, int flags);
 
 /*
  *--------------------------------------------------------------
  *
- * zookeepertcl_state_to_string -- given a zookeeper
+ * zootcl_state_to_string -- given a zookeeper
  *   state code return a string corresponding
  *
  * Results:
@@ -29,7 +29,7 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags);
  *
  *--------------------------------------------------------------
  */
-const char *zookeepertcl_state_to_string (int state)
+const char *zootcl_state_to_string (int state)
 {
 	if (state == 0)
 		return "closed";
@@ -50,7 +50,7 @@ const char *zookeepertcl_state_to_string (int state)
 /*
  *--------------------------------------------------------------
  *
- * zookeepertcl_type_to_string -- given a zookeeper type
+ * zootcl_type_to_string -- given a zookeeper type
  *   return a corresponding string
  *
  * Results:
@@ -61,7 +61,7 @@ const char *zookeepertcl_state_to_string (int state)
  *
  *--------------------------------------------------------------
  */
-const char *zookeepertcl_type_to_string (int state)
+const char *zootcl_type_to_string (int state)
 {
 	if (state == ZOO_CREATED_EVENT)
 		return "created";
@@ -83,7 +83,7 @@ const char *zookeepertcl_type_to_string (int state)
 /*
  *--------------------------------------------------------------
  *
- * zookeepertcl_error_to_code_string -- given a zookeeper error
+ * zootcl_error_to_code_string -- given a zookeeper error
  *   return a corresponding string
  *
  * Results:
@@ -94,7 +94,7 @@ const char *zookeepertcl_type_to_string (int state)
  *
  *--------------------------------------------------------------
  */
-const char *zookeepertcl_error_to_code_string (int status)
+const char *zootcl_error_to_code_string (int status)
 {
 	switch (status) {
 		case ZOK:
@@ -177,7 +177,7 @@ const char *zookeepertcl_error_to_code_string (int status)
 /*
  *--------------------------------------------------------------
  *
- * zookeepertcl_stat_to_array -- given an interp, array name
+ * zootcl_stat_to_array -- given an interp, array name
  *   and zookeeper Stat struct, set elements in the array
  *   with values corresponding to the Stat struct
  *
@@ -189,7 +189,7 @@ const char *zookeepertcl_error_to_code_string (int status)
  *
  *--------------------------------------------------------------
  */
-int zookeepertcl_stat_to_array (Tcl_Interp *interp, char *arrayName, struct Stat *stat)
+int zootcl_stat_to_array (Tcl_Interp *interp, char *arrayName, struct Stat *stat)
 {
 	if (Tcl_SetVar2Ex (interp, arrayName, "czxid", Tcl_NewLongObj (stat->czxid), TCL_LEAVE_ERR_MSG) == NULL) {
 		return TCL_ERROR;
@@ -241,7 +241,7 @@ int zookeepertcl_stat_to_array (Tcl_Interp *interp, char *arrayName, struct Stat
 /*
  *--------------------------------------------------------------
  *
- * zookeepertcl_set_tcl_return_code -- given a zookeeper status
+ * zootcl_set_tcl_return_code -- given a zookeeper status
  *   return TCL_OK if it's ZOK else set an error result and
  *   return TCL_ERROR
  *
@@ -255,11 +255,11 @@ int zookeepertcl_stat_to_array (Tcl_Interp *interp, char *arrayName, struct Stat
  *--------------------------------------------------------------
  */
 int
-zookeepertcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
+zootcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
 	if (status == ZOK) {
 		return TCL_OK;
 	}
-	const char *stateString = zookeepertcl_error_to_code_string (status);
+	const char *stateString = zootcl_error_to_code_string (status);
 
 	// NB this needs to be spruced up to set errorCode and a
 	// better error message and stuff
@@ -271,7 +271,7 @@ zookeepertcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
 /*
  *--------------------------------------------------------------
  *
- * zookeepertcl_data_completion_callback -- data completion callback function
+ * zootcl_data_completion_callback -- data completion callback function
  *
  * we can't call Tcl directly here because this has occurred
  * asynchronously to whatever the interpreter is doing, so
@@ -280,13 +280,13 @@ zookeepertcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
  *--------------------------------------------------------------
  */
 void
-zookeepertcl_data_completion_callback (int rc, const char *value, int valueLen, const struct Stat *stat, const void *context)
+zootcl_data_completion_callback (int rc, const char *value, int valueLen, const struct Stat *stat, const void *context)
 {
-	zookeepertcl_callbackEvent *evPtr;
-	zookeepertcl_callbackContext *ztc = (zookeepertcl_callbackContext *)context;
+	zootcl_callbackEvent *evPtr;
+	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
 
-	evPtr = ckalloc (sizeof (zookeepertcl_callbackEvent));
-	evPtr->event.proc = zookeepertcl_EventProc;
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = DATA;
 	evPtr->commandObj = ztc->callbackObj;
@@ -303,7 +303,7 @@ zookeepertcl_data_completion_callback (int rc, const char *value, int valueLen, 
 /*
  *--------------------------------------------------------------
  *
- * zookeepertcl_watcher -- watcher callback function
+ * zootcl_watcher -- watcher callback function
  *
  * we can't call Tcl directly here because this has occurred
  * asynchronously to whatever the interpreter is doing, so
@@ -311,15 +311,15 @@ zookeepertcl_data_completion_callback (int rc, const char *value, int valueLen, 
  *
  *--------------------------------------------------------------
  */
-void zookeepertcl_watcher (zhandle_t *zh, int type, int state, const char *path, void* context)
+void zootcl_watcher (zhandle_t *zh, int type, int state, const char *path, void* context)
 {
-	zookeepertcl_callbackEvent *evPtr;
+	zootcl_callbackEvent *evPtr;
 
-	evPtr = ckalloc (sizeof (zookeepertcl_callbackEvent));
-	evPtr->event.proc = zookeepertcl_EventProc;
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = WATCHER;
-    evPtr->zo = (zookeepertcl_objectClientData *)zoo_get_context (zh);
+    evPtr->zo = (zootcl_objectClientData *)zoo_get_context (zh);
 	evPtr->commandObj = (Tcl_Obj *)context;
 
 	evPtr->watcher.type = type;
@@ -328,13 +328,13 @@ void zookeepertcl_watcher (zhandle_t *zh, int type, int state, const char *path,
 
 	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 
-	// printf("**** zookeepertcl_watcher invoked type '%s' state '%s' path '%s' command '%s'; event queued\n", zookeepertcl_type_to_string (type), zookeepertcl_state_to_string (state), path, Tcl_GetString (evPtr->commandObj));
+	// printf("**** zootcl_watcher invoked type '%s' state '%s' path '%s' command '%s'; event queued\n", zootcl_type_to_string (type), zootcl_state_to_string (state), path, Tcl_GetString (evPtr->commandObj));
 }
 
 /*
  *--------------------------------------------------------------
  *
- * zookeepertcl_zookeeperObjectDelete -- command deletion callback routine.
+ * zootcl_zookeeperObjectDelete -- command deletion callback routine.
  *
  * Results:
  *      ...destroys the zookeeper object.
@@ -346,9 +346,9 @@ void zookeepertcl_watcher (zhandle_t *zh, int type, int state, const char *path,
  *--------------------------------------------------------------
  */
 void
-zookeepertcl_zookeeperObjectDelete (ClientData clientData)
+zootcl_zookeeperObjectDelete (ClientData clientData)
 {
-    zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
+    zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
@@ -359,7 +359,7 @@ zookeepertcl_zookeeperObjectDelete (ClientData clientData)
 /*
  *----------------------------------------------------------------------
  *
- * zookeepertcl_socket_ready --
+ * zootcl_socket_ready --
  *
  *    this routine is called by Tcl when our channel handler for
  *    the zookeeper socket has something to do
@@ -373,10 +373,10 @@ zookeepertcl_zookeeperObjectDelete (ClientData clientData)
  *----------------------------------------------------------------------
  */
 void
-zookeepertcl_socket_ready (ClientData clientData, int mask)
+zootcl_socket_ready (ClientData clientData, int mask)
 {
 	int events = 0;
-	zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
+	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
 	if (mask & TCL_READABLE) {
@@ -388,15 +388,15 @@ zookeepertcl_socket_ready (ClientData clientData, int mask)
 	}
 
 	int status = zookeeper_process (zo->zh, events);
-printf("zookeeper_process status %s\n", zookeepertcl_error_to_code_string (status));
+printf("zookeeper_process status %s\n", zootcl_error_to_code_string (status));
 
-	Tcl_DeleteChannelHandler (zo->channel, zookeepertcl_socket_ready, clientData);
+	Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, clientData);
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * zookeepertcl_EventSetupProc --
+ * zootcl_EventSetupProc --
  *    This routine is a required argument to Tcl_CreateEventSource
  *
  *    Since we need to poll librdkafka to get events to fire, let's
@@ -409,7 +409,7 @@ printf("zookeeper_process status %s\n", zookeepertcl_error_to_code_string (statu
  *----------------------------------------------------------------------
  */
 void
-zookeepertcl_EventSetupProc (ClientData clientData, int flags) {
+zootcl_EventSetupProc (ClientData clientData, int flags) {
 	Tcl_Time time = {0, 500000};
 
 	Tcl_SetMaxBlockTime (&time);
@@ -418,7 +418,7 @@ zookeepertcl_EventSetupProc (ClientData clientData, int flags) {
 /*
  *----------------------------------------------------------------------
  *
- * zookeepertcl_EventCheckProc --
+ * zootcl_EventCheckProc --
  *
  *    This is a function we pass to Tcl_CreateEventSource that is
  *    invoked to see if any events have occurred and to queue them.
@@ -452,8 +452,8 @@ zookeepertcl_EventSetupProc (ClientData clientData, int flags) {
  *----------------------------------------------------------------------
  */
 void
-zookeepertcl_EventCheckProc (ClientData clientData, int flags) {
-    zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
+zootcl_EventCheckProc (ClientData clientData, int flags) {
+    zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
 {
 	int fd;
 	int interest;
@@ -503,14 +503,14 @@ zookeepertcl_EventCheckProc (ClientData clientData, int flags) {
 		zo->channel = Tcl_MakeFileChannel (((void *)(intptr_t) fd), (TCL_READABLE|TCL_WRITABLE));
 	}
 
-	Tcl_CreateChannelHandler (zo->channel, readOrWrite, zookeepertcl_socket_ready, (ClientData)zo);
+	Tcl_CreateChannelHandler (zo->channel, readOrWrite, zootcl_socket_ready, (ClientData)zo);
 }
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * zookeepertcl_EventProc --
+ * zootcl_EventProc --
  *
  *    this routine is called by the Tcl event handler to process
  *    callbacks we have gotten from zookeeper
@@ -524,9 +524,9 @@ zookeepertcl_EventCheckProc (ClientData clientData, int flags) {
  *----------------------------------------------------------------------
  */
 int
-zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
-	zookeepertcl_callbackEvent *evPtr = (zookeepertcl_callbackEvent *)tevPtr;
-	zookeepertcl_objectClientData *zo = evPtr->zo;
+zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
+	zootcl_callbackEvent *evPtr = (zootcl_callbackEvent *)tevPtr;
+	zootcl_objectClientData *zo = evPtr->zo;
 	Tcl_Interp *interp = zo->interp;
 	int tclReturnCode;
 
@@ -536,7 +536,7 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	int evalObjc;
 	Tcl_Obj **evalObjv;
 
-	// printf("zookeepertcl_EventProc invoked\n");
+	// printf("zootcl_EventProc invoked\n");
 
 	// crack the command object.  it may be a list of multiple elements
 	// and we want that to work, like it could be an object and a method or
@@ -562,16 +562,16 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 			listObjv[element++] = Tcl_NewStringObj (evPtr->watcher.path, -1);
 
 			listObjv[element++] = Tcl_NewStringObj ("type", -1);
-			listObjv[element++] = Tcl_NewStringObj (zookeepertcl_type_to_string (evPtr->watcher.type), -1);
+			listObjv[element++] = Tcl_NewStringObj (zootcl_type_to_string (evPtr->watcher.type), -1);
 
 			listObjv[element++] = Tcl_NewStringObj ("state", -1);
-			listObjv[element++] = Tcl_NewStringObj (zookeepertcl_state_to_string (evPtr->watcher.state), -1);
+			listObjv[element++] = Tcl_NewStringObj (zootcl_state_to_string (evPtr->watcher.state), -1);
 
 			break;
 
 		case DATA:
 			listObjv[element++] = Tcl_NewStringObj ("status", -1);
-			listObjv[element++] = Tcl_NewStringObj (zookeepertcl_error_to_code_string (evPtr->data.rc), -1);
+			listObjv[element++] = Tcl_NewStringObj (zootcl_error_to_code_string (evPtr->data.rc), -1);
 			listObjv[element++] = Tcl_NewStringObj ("data", -1);
 			listObjv[element++] = evPtr->data.dataObj;
 	}
@@ -617,7 +617,7 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 /*
  *----------------------------------------------------------------------
  *
- * zookeepertcl_zookeeperObjectObjCmd --
+ * zootcl_zookeeperObjectObjCmd --
  *
  *      perform methods of a zookeeper object
  *
@@ -630,9 +630,9 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 
     /* ARGSUSED */
 int
-zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
-    zookeepertcl_objectClientData *zo = (zookeepertcl_objectClientData *)clientData;
+    zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 	ZOOAPI zhandle_t *zh = zo->zh;
 	int optIndex;
@@ -754,18 +754,18 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			}
 
 			if (watcherCallbackObj != NULL) {
-				wfn = zookeepertcl_watcher;
+				wfn = zootcl_watcher;
 			}
 
 			int status;
 
 			if ((enum options) optIndex == OPT_GET) {
 				if (dataCallbackObj != NULL) {
-					zookeepertcl_callbackContext *ztc = (zookeepertcl_callbackContext *)ckalloc (sizeof (zookeepertcl_callbackContext));
+					zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 					ztc->callbackObj = dataCallbackObj;
 					ztc->zo = zo;
 
-					status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zookeepertcl_data_completion_callback, ztc);
+					status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zootcl_data_completion_callback, ztc);
 				} else {
 					status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
 					if (status == ZOK) {
@@ -780,10 +780,10 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 				}
 			}
 
-			if (stat != NULL && zookeepertcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+			if (stat != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
 				return TCL_ERROR;
 			}
-			return zookeepertcl_set_tcl_return_code (interp, status);
+			return zootcl_set_tcl_return_code (interp, status);
 		}
 
 		case OPT_CHILDREN:
@@ -800,7 +800,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			path = Tcl_GetString (objv[2]);
 			int status = zoo_wget_children (zh, path, NULL, NULL, &strings);
 			if (status != ZOK) {
-				return zookeepertcl_set_tcl_return_code (interp, status);
+				return zootcl_set_tcl_return_code (interp, status);
 			}
 
 			for (i = 0; i < strings.count; i++) {
@@ -831,7 +831,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			}
 
 			int status = zoo_set (zh, path, buffer, bufferLen, version);
-			return zookeepertcl_set_tcl_return_code (interp, status);
+			return zootcl_set_tcl_return_code (interp, status);
 		}
 
 		case OPT_CREATE:
@@ -896,7 +896,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			if (status == ZOK) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
 			}
-			return zookeepertcl_set_tcl_return_code (interp, status);
+			return zootcl_set_tcl_return_code (interp, status);
 		}
 
 		case OPT_DELETE:
@@ -916,7 +916,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			}
 
 			int status = zoo_delete (zh, path, version);
-			return zookeepertcl_set_tcl_return_code (interp, status);
+			return zootcl_set_tcl_return_code (interp, status);
 		}
 
 		case OPT_STATE:
@@ -927,7 +927,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			}
 
 			int state = zoo_state (zh);
-			const char *stateString = zookeepertcl_state_to_string (state);
+			const char *stateString = zootcl_state_to_string (state);
 			Tcl_SetObjResult (interp, Tcl_NewStringObj (stateString, -1));
 			break;
 		}
@@ -957,7 +957,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 /*
  *----------------------------------------------------------------------
  *
- * zookeepertcl_zookeeperObjCmd --
+ * zootcl_zookeeperObjCmd --
  *
  *      Create a zookeeper object...
  *
@@ -974,10 +974,10 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
     /* ARGSUSED */
 int
-zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
     int                 optIndex;
-	zookeepertcl_objectClientData *zo = NULL;
+	zootcl_objectClientData *zo = NULL;
 
     static CONST char *options[] = {
         "init",
@@ -1034,7 +1034,7 @@ zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			char *cmdName = Tcl_GetString (objv[2]);
 			char *hosts = Tcl_GetString (objv[3]);
 
-			// zhandle_t *zh = zookeeper_init (hosts, zookeepertcl_watcher, timeout, NULL, zo, 0);
+			// zhandle_t *zh = zookeeper_init (hosts, zootcl_watcher, timeout, NULL, zo, 0);
 			zhandle_t *zh = zookeeper_init (hosts, NULL, timeout, NULL, zo, 0);
 
 			if (zh == NULL) {
@@ -1043,7 +1043,7 @@ zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			}
 
 			// allocate one of our kafka client data objects for Tcl and configure it
-			zo = (zookeepertcl_objectClientData *)ckalloc (sizeof (zookeepertcl_objectClientData));
+			zo = (zootcl_objectClientData *)ckalloc (sizeof (zootcl_objectClientData));
 			zo->zh = zh;
 			zo->zookeeper_object_magic = ZOOKEEPER_OBJECT_MAGIC;
 			zo->interp = interp;
@@ -1052,7 +1052,7 @@ zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 
 			zoo_set_context (zo->zh, (void *)zo);
 
-			Tcl_CreateEventSource (zookeepertcl_EventSetupProc, zookeepertcl_EventCheckProc, (ClientData) zo);
+			Tcl_CreateEventSource (zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData) zo);
 
 			// if cmdName is #auto, generate a unique name for the object
 			int autoGeneratedName = 0;
@@ -1068,7 +1068,7 @@ zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			}
 
 			// create a Tcl command to interface to zookeeper
-			zo->cmdToken = Tcl_CreateObjCommand (interp, cmdName, zookeepertcl_zookeeperObjectObjCmd, zo, zookeepertcl_zookeeperObjectDelete);
+			zo->cmdToken = Tcl_CreateObjCommand (interp, cmdName, zootcl_zookeeperObjectObjCmd, zo, zootcl_zookeeperObjectDelete);
 			Tcl_SetObjResult (interp, Tcl_NewStringObj (cmdName, -1));
 			if (autoGeneratedName == 1) {
 				ckfree(cmdName);

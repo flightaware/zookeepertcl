@@ -18,9 +18,9 @@
 #define ZOOKEEPER_OBJECT_MAGIC 7220331
 
 extern int
-zookeepertcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objvp[]);
+zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objvp[]);
 
-typedef struct zookeepertcl_objectClientData
+typedef struct zootcl_objectClientData
 {
     int zookeeper_object_magic;
     Tcl_Interp *interp;
@@ -28,22 +28,22 @@ typedef struct zookeepertcl_objectClientData
 	Tcl_ThreadId threadId;
 	Tcl_Command cmdToken;
 	Tcl_Channel channel;
-} zookeepertcl_objectClientData;
+} zootcl_objectClientData;
 
-enum zookeepertcl_CallbackType {WATCHER, DATA};
+enum zootcl_CallbackType {WATCHER, DATA};
 
-typedef struct zookeepertcl_callbackContext
+typedef struct zootcl_callbackContext
 {
-	zookeepertcl_objectClientData *zo;
+	zootcl_objectClientData *zo;
 	Tcl_Obj *callbackObj;
-} zookeepertcl_callbackContext;
+} zootcl_callbackContext;
 
-typedef struct zookeepertcl_callbackEvent
+typedef struct zootcl_callbackEvent
 {
     Tcl_Event event;
-	zookeepertcl_objectClientData *zo;
+	zootcl_objectClientData *zo;
 	Tcl_Obj *commandObj;
-	enum zookeepertcl_CallbackType callbackType;
+	enum zootcl_CallbackType callbackType;
 	union {
 		struct {
 			int type;
@@ -56,7 +56,7 @@ typedef struct zookeepertcl_callbackEvent
 			struct Stat stat;
 		} data;
 	};
-} zookeepertcl_callbackEvent;
+} zootcl_callbackEvent;
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
 

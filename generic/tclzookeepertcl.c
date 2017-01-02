@@ -55,7 +55,7 @@ Zookeeper_Init(Tcl_Interp *interp)
     namespace = Tcl_CreateNamespace (interp, "::zookeeper", NULL, NULL);
 
     /* Create the create command  */
-    Tcl_CreateObjCommand(interp, "::zookeeper::zookeeper", (Tcl_ObjCmdProc *) zookeepertcl_zookeeperObjCmd, (ClientData)NULL, (Tcl_CmdDeleteProc *)NULL);
+    Tcl_CreateObjCommand(interp, "::zookeeper::zookeeper", (Tcl_ObjCmdProc *) zootcl_zookeeperObjCmd, (ClientData)NULL, (Tcl_CmdDeleteProc *)NULL);
 
     Tcl_Export (interp, namespace, "*", 0);
 
