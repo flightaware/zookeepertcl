@@ -334,6 +334,49 @@ void zootcl_watcher (zhandle_t *zh, int type, int state, const char *path, void*
 /*
  *--------------------------------------------------------------
  *
+ * zootcl_init_callback -- callback function for callbacks
+ *   made to the callback passed to zookeeper_init
+ *
+ * again we can't call Tcl directly here because this has occurred
+ * asynchronously to whatever the interpreter is doing, so
+ * we queue an event to the interpreter instead.
+ *
+ *--------------------------------------------------------------
+ */
+void zootcl_init_callback (zhandle_t *zh, int type, int state, const char *path, void* context)
+{
+	zootcl_callbackEvent *evPtr;
+
+	// this could be zo = context; because context
+	// here is the same as zoo_get_context()'s when
+	// the callback is from the callback passed to
+	// zookeeper_init
+    zootcl_objectClientData *zo = (zootcl_objectClientData *)zoo_get_context (zh);
+
+	// if there's no callback function, return
+	if (zo->initCallbackObj == NULL) {
+		return;
+	}
+
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
+
+	evPtr->callbackType = WATCHER;
+    evPtr->zo = zo;
+	evPtr->commandObj = zo->initCallbackObj;
+
+	evPtr->watcher.type = type;
+	evPtr->watcher.state = state;
+	evPtr->watcher.path = path;
+
+	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+
+	// printf("**** zootcl_watcher invoked type '%s' state '%s' path '%s' command '%s'; event queued\n", zootcl_type_to_string (type), zootcl_state_to_string (state), path, Tcl_GetString (evPtr->commandObj));
+}
+
+/*
+ *--------------------------------------------------------------
+ *
  * zootcl_zookeeperObjectDelete -- command deletion callback routine.
  *
  * Results:
@@ -1033,22 +1076,24 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 
 			char *cmdName = Tcl_GetString (objv[2]);
 			char *hosts = Tcl_GetString (objv[3]);
+			//
+			// allocate one of our kafka client data objects for Tcl and configure it
+			zo = (zootcl_objectClientData *)ckalloc (sizeof (zootcl_objectClientData));
+			zo->zookeeper_object_magic = ZOOKEEPER_OBJECT_MAGIC;
+			zo->interp = interp;
+			zo->threadId = Tcl_GetCurrentThread ();
+			zo->channel = NULL;
+			zo->initCallbackObj = NULL;
 
-			// zhandle_t *zh = zookeeper_init (hosts, zootcl_watcher, timeout, NULL, zo, 0);
-			zhandle_t *zh = zookeeper_init (hosts, NULL, timeout, NULL, zo, 0);
+			zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
+			// zhandle_t *zh = zookeeper_init (hosts, NULL, timeout, NULL, zo, 0);
 
 			if (zh == NULL) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
 				return TCL_ERROR;
 			}
 
-			// allocate one of our kafka client data objects for Tcl and configure it
-			zo = (zootcl_objectClientData *)ckalloc (sizeof (zootcl_objectClientData));
 			zo->zh = zh;
-			zo->zookeeper_object_magic = ZOOKEEPER_OBJECT_MAGIC;
-			zo->interp = interp;
-			zo->threadId = Tcl_GetCurrentThread ();
-			zo->channel = NULL;
 
 			zoo_set_context (zo->zh, (void *)zo);
 

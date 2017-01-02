@@ -20,6 +20,8 @@
 extern int
 zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objvp[]);
 
+// this is the data structure we have to throw around between
+// zookeeper and zookeepertcl to be able to find one from the other
 typedef struct zootcl_objectClientData
 {
     int zookeeper_object_magic;
@@ -28,6 +30,7 @@ typedef struct zootcl_objectClientData
 	Tcl_ThreadId threadId;
 	Tcl_Command cmdToken;
 	Tcl_Channel channel;
+	Tcl_Obj *initCallbackObj; // handle callbacks from zookeeper_init callback function
 } zootcl_objectClientData;
 
 enum zootcl_CallbackType {WATCHER, DATA};
@@ -38,6 +41,8 @@ typedef struct zootcl_callbackContext
 	Tcl_Obj *callbackObj;
 } zootcl_callbackContext;
 
+// this is the data structure that zookeepertcl queues to tcl
+// to move an event from zookeeper into tcl
 typedef struct zootcl_callbackEvent
 {
     Tcl_Event event;
