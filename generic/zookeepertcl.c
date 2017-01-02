@@ -283,16 +283,19 @@ void
 zookeepertcl_data_completion_callback (int rc, const char *value, int valueLen, const struct Stat *stat, const void *context)
 {
 	zookeepertcl_callbackEvent *evPtr;
+	zookeepertcl_callbackContext *ztc = (zookeepertcl_callbackContext *)context;
 
 	evPtr = ckalloc (sizeof (zookeepertcl_callbackEvent));
 	evPtr->event.proc = zookeepertcl_EventProc;
 
 	evPtr->callbackType = DATA;
-	evPtr->commandObj = (Tcl_Obj *)context;
+	evPtr->commandObj = ztc->callbackObj;
 
+	evPtr->data.rc = rc;
 	evPtr->data.dataObj = Tcl_NewStringObj (value, valueLen);
 	evPtr->data.stat = *stat;
-    evPtr->data.zo = (zookeepertcl_objectClientData *)zoo_get_context (zh);
+    evPtr->zo = ztc->zo;
+	ckfree(ztc);
 
 	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 }
@@ -544,26 +547,37 @@ zookeepertcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	}
 
 	// construct callback argument as a list
+	Tcl_Obj *listObjv[20];
+	int element = 0;
 
-#define ZOOKEEPERTCL_CALLBACK_LISTCOUNT 8
-
-	Tcl_Obj *listObjv[ZOOKEEPERTCL_CALLBACK_LISTCOUNT];
-
-	listObjv[0] = Tcl_NewStringObj ("path", -1);
-	listObjv[1] = Tcl_NewStringObj (evPtr->watcher.path, -1);
-
-	listObjv[2] = Tcl_NewStringObj ("zk", -1);
+	listObjv[element++] = Tcl_NewStringObj ("zk", -1);
 	Tcl_Obj *commandObj = Tcl_NewObj();
 	Tcl_GetCommandFullName (interp, zo->cmdToken, commandObj);
-	listObjv[3] = commandObj;
+	listObjv[element++] = commandObj;
 
-	listObjv[4] = Tcl_NewStringObj ("type", -1);
-	listObjv[5] = Tcl_NewStringObj (zookeepertcl_type_to_string (evPtr->watcher.type), -1);
 
-	listObjv[6] = Tcl_NewStringObj ("state", -1);
-	listObjv[7] = Tcl_NewStringObj (zookeepertcl_state_to_string (evPtr->watcher.state), -1);
+	switch(evPtr->callbackType) {
+		case WATCHER:
+			listObjv[element++] = Tcl_NewStringObj ("path", -1);
+			listObjv[element++] = Tcl_NewStringObj (evPtr->watcher.path, -1);
 
-	Tcl_Obj *listObj = Tcl_NewListObj (ZOOKEEPERTCL_CALLBACK_LISTCOUNT, listObjv);
+			listObjv[element++] = Tcl_NewStringObj ("type", -1);
+			listObjv[element++] = Tcl_NewStringObj (zookeepertcl_type_to_string (evPtr->watcher.type), -1);
+
+			listObjv[element++] = Tcl_NewStringObj ("state", -1);
+			listObjv[element++] = Tcl_NewStringObj (zookeepertcl_state_to_string (evPtr->watcher.state), -1);
+
+			break;
+
+		case DATA:
+			listObjv[element++] = Tcl_NewStringObj ("status", -1);
+			listObjv[element++] = Tcl_NewStringObj (zookeepertcl_error_to_code_string (evPtr->data.rc), -1);
+			listObjv[element++] = Tcl_NewStringObj ("data", -1);
+			listObjv[element++] = evPtr->data.dataObj;
+	}
+
+	Tcl_Obj *listObj = Tcl_NewListObj (element, listObjv);
+
 
 	// construct a new list with the command containing as many elements
 	// as it needs and the argument list as its final argument
@@ -685,7 +699,7 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 			struct Stat statBuf;
 
 			if (objc < 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path ?-watch code? ?-stat statArray?");
+				Tcl_WrongNumArgs (interp, 2, objv, "path ?-watch code? ?-stat statArray? ?-async command?");
 				return TCL_ERROR;
 			}
 
@@ -747,7 +761,11 @@ zookeepertcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, in
 
 			if ((enum options) optIndex == OPT_GET) {
 				if (dataCallbackObj != NULL) {
-					status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zookeepertcl_data_completion_callback, dataCallbackObj);
+					zookeepertcl_callbackContext *ztc = (zookeepertcl_callbackContext *)ckalloc (sizeof (zookeepertcl_callbackContext));
+					ztc->callbackObj = dataCallbackObj;
+					ztc->zo = zo;
+
+					status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zookeepertcl_data_completion_callback, ztc);
 				} else {
 					status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
 					if (status == ZOK) {

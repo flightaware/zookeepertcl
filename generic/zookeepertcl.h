@@ -32,6 +32,12 @@ typedef struct zookeepertcl_objectClientData
 
 enum zookeepertcl_CallbackType {WATCHER, DATA};
 
+typedef struct zookeepertcl_callbackContext
+{
+	zookeepertcl_objectClientData *zo;
+	Tcl_Obj *callbackObj;
+} zookeepertcl_callbackContext;
+
 typedef struct zookeepertcl_callbackEvent
 {
     Tcl_Event event;
@@ -45,9 +51,9 @@ typedef struct zookeepertcl_callbackEvent
 			const char *path;
 		} watcher;
 		struct {
+			int rc;
 			Tcl_Obj *dataObj;
 			struct Stat stat;
-			zookeepertcl_objectClientData *zo;
 		} data;
 	};
 } zookeepertcl_callbackEvent;
