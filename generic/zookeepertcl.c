@@ -1064,11 +1064,23 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 
 		case OPT_INIT: {
 		    int timeout;
+			Tcl_Obj *callbackObj = Tcl_NewObj();
 
-			if (objc != 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "cmdName hosts timeout");
+			static CONST char *subOptions[] = {
+				"-async",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_ASYNC
+			};
+
+
+			if ((objc < 5) || (objc > 7)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "cmdName hosts timeout ?-async callback?");
 				return TCL_ERROR;
 			}
+
 
 			if (Tcl_GetIntFromObj (interp, objv[4], &timeout) == TCL_ERROR) {
 				return TCL_ERROR;
@@ -1076,6 +1088,28 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 
 			char *cmdName = Tcl_GetString (objv[2]);
 			char *hosts = Tcl_GetString (objv[3]);
+			int suboptIndex = 0;
+			int i;
+
+			for (i = 5; i < objc; i++) {
+				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+					TCL_EXACT, &suboptIndex) != TCL_OK) {
+					return TCL_ERROR;
+				}
+
+				switch ((enum subOptions) suboptIndex) {
+					case SUBOPT_ASYNC:
+					{
+						if (i + 1 >= objc) {
+							Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+							return TCL_ERROR;
+						}
+						callbackObj = objv[++i];
+						Tcl_IncrRefCount (callbackObj);
+						break;
+					}
+				}
+			}
 			//
 			// allocate one of our kafka client data objects for Tcl and configure it
 			zo = (zootcl_objectClientData *)ckalloc (sizeof (zootcl_objectClientData));
@@ -1083,7 +1117,7 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 			zo->interp = interp;
 			zo->threadId = Tcl_GetCurrentThread ();
 			zo->channel = NULL;
-			zo->initCallbackObj = NULL;
+			zo->initCallbackObj = callbackObj;
 
 			zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
 			// zhandle_t *zh = zookeeper_init (hosts, NULL, timeout, NULL, zo, 0);

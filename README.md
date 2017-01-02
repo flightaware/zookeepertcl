@@ -60,6 +60,8 @@ debug level can be debug, info, warn or error.
 
 `zookeeper::zookeeper version`` returns the version of the C client, like **3.4.6**.  (The version of zookeeper Tcl can always be determined using `package require zookeeper` or one of various other Tcl package methods.)
 
+zookeeper::zookeeper init name host timeout ?-async callback?
+
 ```tcl
 set zk [zookeeper init #auto localhost:2181 50000]
 ```
@@ -71,6 +73,8 @@ zookeeper::zookeeper init zk localhost:2181 50000
 ```
 
 In the explicitly named style, in place of **#auto** you provide the name of the command, in this case, **zk**.
+
+If **-async** is specified, what follows next is a command that will be executed for general zookeeper callbacks.  While watches, asynchronous data requests, etc, have their own callbacks, this callback will tell you the state is connected and stuff like that.
 
 Creating a node is simple...
 
