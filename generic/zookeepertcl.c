@@ -813,6 +813,451 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	return 1;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_exists_get_subcommand --
+ *
+ *      implement the "get" and "exists" methods of a zookeeper tcl command
+ *      object
+ *
+ * Results:
+ *      A standard Tcl result.
+ *
+ *
+ *----------------------------------------------------------------------
+ */
+int
+zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], int isGet, ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+{
+	static CONST char *subOptions[] = {
+		"-watch",
+		"-async",
+		"-stat",
+		NULL
+	};
+
+	enum subOptions {
+		SUBOPT_WATCH,
+		SUBOPT_ASYNC,
+		SUBOPT_STAT
+	};
+
+	char *path;
+	char buffer[1024*1024];
+	int bufferLen = sizeof(buffer);
+	watcher_fn wfn = NULL;
+	struct Stat *stat = NULL;
+	struct Stat statBuf;
+
+	if (objc < 3) {
+		Tcl_WrongNumArgs (interp, 2, objv, "path ?-watch code? ?-stat statArray? ?-async command?");
+		return TCL_ERROR;
+	}
+
+	path = Tcl_GetString (objv[2]);
+
+	int i;
+	int suboptIndex = 0;
+	Tcl_Obj *watcherCallbackObj = NULL;
+	Tcl_Obj *dataCallbackObj = NULL;
+	char *statArray = NULL;
+
+	for (i = 3; i < objc; i++) {
+		if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+			TCL_EXACT, &suboptIndex) != TCL_OK) {
+			return TCL_ERROR;
+		}
+
+		switch ((enum subOptions) suboptIndex) {
+			case SUBOPT_WATCH:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "-watch code");
+					return TCL_ERROR;
+				}
+				watcherCallbackObj = objv[++i];
+				Tcl_IncrRefCount (watcherCallbackObj);
+				break;
+			}
+
+			case SUBOPT_ASYNC:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+					return TCL_ERROR;
+				}
+				dataCallbackObj = objv[++i];
+				Tcl_IncrRefCount (dataCallbackObj);
+				break;
+			}
+
+			case SUBOPT_STAT:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "-stat statArray");
+					return TCL_ERROR;
+				}
+				statArray = Tcl_GetString (objv[++i]);
+				stat = &statBuf;
+				break;
+			}
+		}
+	}
+
+	if ((dataCallbackObj != NULL) && (statArray != NULL)) {
+		Tcl_SetObjResult (interp, Tcl_NewStringObj ("-stat and -async options are mutually exclusive", -1));
+		return TCL_ERROR;
+	}
+
+	if (watcherCallbackObj != NULL) {
+		wfn = zootcl_watcher;
+	}
+
+	int status;
+
+	if (isGet) {
+		// if dataCallbackObj is null, do the synchronous version
+		if (dataCallbackObj == NULL) {
+			status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
+			if (status == ZOK) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+			}
+		} else {
+			// do the asynchronous version
+			zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+			ztc->callbackObj = dataCallbackObj;
+			ztc->zo = zo;
+
+			status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zootcl_data_completion_callback, ztc);
+		}
+	} else {
+		if (dataCallbackObj == NULL) {
+			// do the synchronous version of wexists
+			status = zoo_wexists (zh, path, wfn, (void *)watcherCallbackObj, stat);
+			if (status == ZOK || status == ZNONODE) {
+				Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
+				if (stat != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+					return TCL_ERROR;
+				}
+				// ZNONODE would be an error below but we don't want an error
+				// (we are content to return 0 saying the node doesn't exist,
+				// so we switch it back to ZOK)
+				status = ZOK;
+			}
+		} else {
+			// do the asynchronous version of znode existence check
+			zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+			ztc->callbackObj = dataCallbackObj;
+			ztc->zo = zo;
+
+			status = zoo_awexists (zh, path, wfn, (void *)watcherCallbackObj, zootcl_stat_completion_callback, ztc);
+		}
+	}
+
+	return zootcl_set_tcl_return_code (interp, status);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_children_subcommand --
+ *
+ *      implement the "children" method of a zookeeper tcl command
+ *      object
+ *
+ * Results:
+ *      A standard Tcl result.
+ *
+ *
+ *----------------------------------------------------------------------
+ */
+int
+zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+{
+	char *path;
+	struct String_vector strings;
+	int i;
+
+	if (objc != 3) {
+		Tcl_WrongNumArgs (interp, 2, objv, "path");
+		return TCL_ERROR;
+	}
+
+	path = Tcl_GetString (objv[2]);
+	int status = zoo_wget_children (zh, path, NULL, NULL, &strings);
+	if (status != ZOK) {
+		return zootcl_set_tcl_return_code (interp, status);
+	}
+
+	for (i = 0; i < strings.count; i++) {
+		if (Tcl_ListObjAppendElement (interp, Tcl_GetObjResult (interp), Tcl_NewStringObj (strings.data[i], -1)) == TCL_ERROR) {
+			return TCL_ERROR;
+		}
+	}
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_set_subcommand --
+ *
+ *      implement the "set" method of a zookeeper tcl command
+ *      object
+ *
+ * Results:
+ *      A standard Tcl result.
+ *
+ *
+ *----------------------------------------------------------------------
+ */
+int
+zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+{
+	Tcl_Obj *callbackObj = NULL;
+
+	static CONST char *subOptions[] = {
+		"-async",
+		NULL
+	};
+
+	enum subOptions {
+		SUBOPT_ASYNC
+	};
+
+	char *path;
+	char *buffer;
+	int bufferLen = 0;
+	int version = 0;
+
+	int i;
+	int suboptIndex = 0;
+
+	if ((objc < 5) || (objc > 7)) {
+		Tcl_WrongNumArgs (interp, 2, objv, "path data version ?-async callback?");
+		return TCL_ERROR;
+	}
+
+	path = Tcl_GetString (objv[2]);
+	buffer = Tcl_GetStringFromObj (objv[3], &bufferLen);
+
+	if (Tcl_GetIntFromObj (interp, objv[4], &version) == TCL_ERROR) {
+		return TCL_ERROR;
+	}
+
+	for (i = 5; i < objc; i++) {
+		if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+			TCL_EXACT, &suboptIndex) != TCL_OK) {
+			return TCL_ERROR;
+		}
+
+		switch ((enum subOptions) suboptIndex) {
+			case SUBOPT_ASYNC:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+					return TCL_ERROR;
+				}
+				callbackObj = objv[++i];
+				Tcl_IncrRefCount (callbackObj);
+				break;
+			}
+		}
+	}
+
+	int status;
+
+	if (callbackObj == NULL) {
+		status = zoo_set (zh, path, buffer, bufferLen, version);
+	} else {
+		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ztc->callbackObj = callbackObj;
+		ztc->zo = zo;
+
+		status = zoo_aset (zh, path, buffer, bufferLen, version, zootcl_stat_completion_callback, ztc);
+	}
+	return zootcl_set_tcl_return_code (interp, status);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_create_subcommand --
+ *
+ *      implement the "create" method of a zookeeper tcl command
+ *      object
+ *
+ * Results:
+ *      A standard Tcl result.
+ *
+ *
+ *----------------------------------------------------------------------
+ */
+int
+zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+{
+	static CONST char *subOptions[] = {
+		"-async",
+		"-value",
+		"-ephemeral",
+		"-sequence",
+		NULL
+	};
+
+	enum subOptions {
+		SUBOPT_ASYNC,
+		SUBOPT_VALUE,
+		SUBOPT_EPHEMERAL,
+		SUBOPT_SEQUENCE
+	};
+
+	char *path;
+	int valueLen = -1;
+	char *value = NULL;
+	int flags = 0;
+
+	if (objc < 3)  {
+		Tcl_WrongNumArgs (interp, 2, objv, "path ?-value value? ?-ephemeral? ?-sequence? ?-async callback?");
+		return TCL_ERROR;
+	}
+	path = Tcl_GetString (objv[2]);
+	int i;
+	int suboptIndex = 0;
+	Tcl_Obj *callbackObj = Tcl_NewObj();
+
+	for (i = 3; i < objc; i++) {
+		if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+			TCL_EXACT, &suboptIndex) != TCL_OK) {
+			return TCL_ERROR;
+		}
+
+		switch ((enum subOptions) suboptIndex) {
+			case SUBOPT_ASYNC:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "-async callback");
+					return TCL_ERROR;
+				}
+				callbackObj = objv[++i];
+				Tcl_IncrRefCount (callbackObj);
+				break;
+			}
+			case SUBOPT_VALUE:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "-value value");
+					return TCL_ERROR;
+				}
+				value = Tcl_GetStringFromObj (objv[++i], &valueLen);
+			}
+
+			case SUBOPT_EPHEMERAL:
+			{
+				flags |= ZOO_EPHEMERAL;
+			}
+
+			case SUBOPT_SEQUENCE:
+			{
+				flags |= ZOO_SEQUENCE;
+			}
+		}
+	}
+
+	char returnPathBuf[1024*1024];
+
+	int status;
+
+	if (callbackObj == NULL) {
+		status = zoo_create (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, returnPathBuf, sizeof(returnPathBuf));
+	} else {
+		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ztc->callbackObj = callbackObj;
+		ztc->zo = zo;
+		status = zoo_acreate (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, zootcl_string_completion_callback, ztc);
+	}
+	if (status == ZOK) {
+		Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
+	}
+	return zootcl_set_tcl_return_code (interp, status);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_delete_subcommand --
+ *
+ *      implement the "delete" method of a zookeeper tcl command
+ *      object
+ *
+ * Results:
+ *      A standard Tcl result.
+ *
+ *
+ *----------------------------------------------------------------------
+ */
+int
+zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+{
+	Tcl_Obj *callbackObj = NULL;
+	int status;
+
+	static CONST char *subOptions[] = {
+		"-async",
+		NULL
+	};
+
+	enum subOptions {
+		SUBOPT_ASYNC
+	};
+
+	char *path;
+	int version = 0;
+	int i;
+	int suboptIndex = 0;
+
+	if ((objc < 4) || (objc > 6)) {
+		Tcl_WrongNumArgs (interp, 2, objv, "path version ?-async callback?");
+		return TCL_ERROR;
+	}
+
+	path = Tcl_GetString (objv[2]);
+
+	if (Tcl_GetIntFromObj (interp, objv[3], &version) == TCL_ERROR) {
+		return TCL_ERROR;
+	}
+
+	for (i = 4; i < objc; i++) {
+		if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+			TCL_EXACT, &suboptIndex) != TCL_OK) {
+			return TCL_ERROR;
+		}
+
+		switch ((enum subOptions) suboptIndex) {
+			case SUBOPT_ASYNC:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+					return TCL_ERROR;
+				}
+				callbackObj = objv[++i];
+				Tcl_IncrRefCount (callbackObj);
+				break;
+			}
+		}
+	}
+
+	if (callbackObj == NULL) {
+		status = zoo_delete (zh, path, version);
+	} else {
+		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ztc->callbackObj = callbackObj;
+		ztc->zo = zo;
+		status = zoo_adelete (zh, path, version, zootcl_void_completion_callback, ztc);
+	}
+
+	return zootcl_set_tcl_return_code (interp, status);
+}
 
 /*
  *----------------------------------------------------------------------
@@ -827,8 +1272,6 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
  *
  *----------------------------------------------------------------------
  */
-
-    /* ARGSUSED */
 int
 zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
@@ -877,363 +1320,19 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
     switch ((enum options) optIndex) {
 		case OPT_EXISTS:
 		case OPT_GET:
-		{
-			static CONST char *subOptions[] = {
-				"-watch",
-				"-async",
-				"-stat",
-				NULL
-			};
-
-			enum subOptions {
-				SUBOPT_WATCH,
-				SUBOPT_ASYNC,
-				SUBOPT_STAT
-			};
-
-			char *path;
-			char buffer[1024*1024];
-			int bufferLen = sizeof(buffer);
-			watcher_fn wfn = NULL;
-			struct Stat *stat = NULL;
-			struct Stat statBuf;
-
-			if (objc < 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path ?-watch code? ?-stat statArray? ?-async command?");
-				return TCL_ERROR;
-			}
-
-			path = Tcl_GetString (objv[2]);
-
-			int i;
-			int suboptIndex = 0;
-			Tcl_Obj *watcherCallbackObj = NULL;
-			Tcl_Obj *dataCallbackObj = NULL;
-			char *statArray = NULL;
-
-			for (i = 3; i < objc; i++) {
-				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
-					TCL_EXACT, &suboptIndex) != TCL_OK) {
-					return TCL_ERROR;
-				}
-
-				switch ((enum subOptions) suboptIndex) {
-					case SUBOPT_WATCH:
-					{
-						if (i + 1 >= objc) {
-							Tcl_WrongNumArgs (interp, 2, objv, "-watch code");
-							return TCL_ERROR;
-						}
-						watcherCallbackObj = objv[++i];
-						Tcl_IncrRefCount (watcherCallbackObj);
-						break;
-					}
-
-					case SUBOPT_ASYNC:
-					{
-						if (i + 1 >= objc) {
-							Tcl_WrongNumArgs (interp, 2, objv, "-async code");
-							return TCL_ERROR;
-						}
-						dataCallbackObj = objv[++i];
-						Tcl_IncrRefCount (dataCallbackObj);
-						break;
-					}
-
-					case SUBOPT_STAT:
-					{
-						if (i + 1 >= objc) {
-							Tcl_WrongNumArgs (interp, 2, objv, "-stat statArray");
-							return TCL_ERROR;
-						}
-						statArray = Tcl_GetString (objv[++i]);
-						stat = &statBuf;
-						break;
-					}
-				}
-			}
-
-			if (watcherCallbackObj != NULL) {
-				wfn = zootcl_watcher;
-			}
-
-			int status;
-
-			if ((enum options) optIndex == OPT_GET) {
-				if (dataCallbackObj == NULL) {
-					status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
-					if (status == ZOK) {
-						Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
-					}
-				} else {
-					zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
-					ztc->callbackObj = dataCallbackObj;
-					ztc->zo = zo;
-
-					status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zootcl_data_completion_callback, ztc);
-				}
-			} else {
-				if (dataCallbackObj == NULL) {
-					status = zoo_wexists (zh, path, wfn, (void *)watcherCallbackObj, stat);
-					if (status == ZOK || status == ZNONODE) {
-						Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
-						status = ZOK; // ZNONODE would be an error below but it's ok here
-					}
-				} else {
-					zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
-					ztc->callbackObj = dataCallbackObj;
-					ztc->zo = zo;
-
-					status = zoo_awexists (zh, path, wfn, (void *)watcherCallbackObj, zootcl_stat_completion_callback, ztc);
-				}
-			}
-
-			if (stat != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
-			return zootcl_set_tcl_return_code (interp, status);
-		}
+			return zootcl_exists_get_subcommand(interp, objc, objv, ((enum options) optIndex == OPT_GET), zh, zo);
 
 		case OPT_CHILDREN:
-		{
-			char *path;
-			struct String_vector strings;
-			int i;
-
-			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path");
-				return TCL_ERROR;
-			}
-
-			path = Tcl_GetString (objv[2]);
-			int status = zoo_wget_children (zh, path, NULL, NULL, &strings);
-			if (status != ZOK) {
-				return zootcl_set_tcl_return_code (interp, status);
-			}
-
-			for (i = 0; i < strings.count; i++) {
-				if (Tcl_ListObjAppendElement (interp, Tcl_GetObjResult (interp), Tcl_NewStringObj (strings.data[i], -1)) == TCL_ERROR) {
-					return TCL_ERROR;
-				}
-			}
-			return TCL_OK;
-		}
+			return zootcl_children_subcommand(interp, objc, objv, zh, zo);
 
 		case OPT_SET:
-		{
-			Tcl_Obj *callbackObj = NULL;
-
-			static CONST char *subOptions[] = {
-				"-async",
-				NULL
-			};
-
-			enum subOptions {
-				SUBOPT_ASYNC
-			};
-
-			char *path;
-			char *buffer;
-			int bufferLen = 0;
-			int version = 0;
-
-			int i;
-			int suboptIndex = 0;
-
-			if ((objc < 5) || (objc > 7)) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path data version ?-async callback?");
-				return TCL_ERROR;
-			}
-
-			path = Tcl_GetString (objv[2]);
-			buffer = Tcl_GetStringFromObj (objv[3], &bufferLen);
-
-			if (Tcl_GetIntFromObj (interp, objv[4], &version) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
-
-			for (i = 5; i < objc; i++) {
-				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
-					TCL_EXACT, &suboptIndex) != TCL_OK) {
-					return TCL_ERROR;
-				}
-
-				switch ((enum subOptions) suboptIndex) {
-					case SUBOPT_ASYNC:
-					{
-						if (i + 1 >= objc) {
-							Tcl_WrongNumArgs (interp, 2, objv, "-async code");
-							return TCL_ERROR;
-						}
-						callbackObj = objv[++i];
-						Tcl_IncrRefCount (callbackObj);
-						break;
-					}
-				}
-			}
-
-			int status;
-
-			if (callbackObj == NULL) {
-				status = zoo_set (zh, path, buffer, bufferLen, version);
-			} else {
-				zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
-				ztc->callbackObj = callbackObj;
-				ztc->zo = zo;
-
-				status = zoo_aset (zh, path, buffer, bufferLen, version, zootcl_stat_completion_callback, ztc);
-			}
-			return zootcl_set_tcl_return_code (interp, status);
-		}
+			return zootcl_set_subcommand(interp, objc, objv, zh, zo);
 
 		case OPT_CREATE:
-		{
-			static CONST char *subOptions[] = {
-				"-async",
-				"-value",
-				"-ephemeral",
-				"-sequence",
-				NULL
-			};
-
-			enum subOptions {
-				SUBOPT_ASYNC,
-				SUBOPT_VALUE,
-				SUBOPT_EPHEMERAL,
-				SUBOPT_SEQUENCE
-			};
-
-			char *path;
-			int valueLen = -1;
-			char *value = NULL;
-			int flags = 0;
-
-			if (objc < 3)  {
-				Tcl_WrongNumArgs (interp, 2, objv, "path ?-value value? ?-ephemeral? ?-sequence? ?-async callback?");
-				return TCL_ERROR;
-			}
-			path = Tcl_GetString (objv[2]);
-			int i;
-			int suboptIndex = 0;
-			Tcl_Obj *callbackObj = Tcl_NewObj();
-
-			for (i = 3; i < objc; i++) {
-				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
-					TCL_EXACT, &suboptIndex) != TCL_OK) {
-					return TCL_ERROR;
-				}
-
-				switch ((enum subOptions) suboptIndex) {
-					case SUBOPT_ASYNC:
-					{
-						if (i + 1 >= objc) {
-							Tcl_WrongNumArgs (interp, 2, objv, "-async callback");
-							return TCL_ERROR;
-						}
-						callbackObj = objv[++i];
-						Tcl_IncrRefCount (callbackObj);
-						break;
-					}
-					case SUBOPT_VALUE:
-					{
-						if (i + 1 >= objc) {
-							Tcl_WrongNumArgs (interp, 2, objv, "-value value");
-							return TCL_ERROR;
-						}
-						value = Tcl_GetStringFromObj (objv[++i], &valueLen);
-					}
-
-					case SUBOPT_EPHEMERAL:
-					{
-						flags |= ZOO_EPHEMERAL;
-					}
-
-					case SUBOPT_SEQUENCE:
-					{
-						flags |= ZOO_SEQUENCE;
-					}
-				}
-			}
-
-			char returnPathBuf[1024*1024];
-
-			int status;
-
-			if (callbackObj == NULL) {
-				status = zoo_create (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, returnPathBuf, sizeof(returnPathBuf));
-			} else {
-				zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
-				ztc->callbackObj = callbackObj;
-				ztc->zo = zo;
-				status = zoo_acreate (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, zootcl_string_completion_callback, ztc);
-			}
-			if (status == ZOK) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
-			}
-			return zootcl_set_tcl_return_code (interp, status);
-		}
+			return zootcl_create_subcommand(interp, objc, objv, zh, zo);
 
 		case OPT_DELETE:
-		{
-			Tcl_Obj *callbackObj = NULL;
-			int status;
-
-			static CONST char *subOptions[] = {
-				"-async",
-				NULL
-			};
-
-			enum subOptions {
-				SUBOPT_ASYNC
-			};
-
-			char *path;
-			int version = 0;
-			int i;
-			int suboptIndex = 0;
-
-			if ((objc < 4) || (objc > 6)) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path version ?-async callback?");
-				return TCL_ERROR;
-			}
-
-			path = Tcl_GetString (objv[2]);
-
-			if (Tcl_GetIntFromObj (interp, objv[3], &version) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
-
-			for (i = 4; i < objc; i++) {
-				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
-					TCL_EXACT, &suboptIndex) != TCL_OK) {
-					return TCL_ERROR;
-				}
-
-				switch ((enum subOptions) suboptIndex) {
-					case SUBOPT_ASYNC:
-					{
-						if (i + 1 >= objc) {
-							Tcl_WrongNumArgs (interp, 2, objv, "-async code");
-							return TCL_ERROR;
-						}
-						callbackObj = objv[++i];
-						Tcl_IncrRefCount (callbackObj);
-						break;
-					}
-				}
-			}
-
-			if (callbackObj == NULL) {
-				status = zoo_delete (zh, path, version);
-			} else {
-				zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
-				ztc->callbackObj = callbackObj;
-				ztc->zo = zo;
-				status = zoo_adelete (zh, path, version, zootcl_void_completion_callback, ztc);
-			}
-
-			return zootcl_set_tcl_return_code (interp, status);
-		}
+			return zootcl_delete_subcommand(interp, objc, objv, zh, zo);
 
 		case OPT_STATE:
 		{
