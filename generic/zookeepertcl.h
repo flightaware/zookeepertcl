@@ -33,7 +33,7 @@ typedef struct zootcl_objectClientData
 	Tcl_Obj *initCallbackObj; // handle callbacks from zookeeper_init callback function
 } zootcl_objectClientData;
 
-enum zootcl_CallbackType {WATCHER, DATA};
+enum zootcl_CallbackType {WATCHER_CALLBACK, DATA_CALLBACK, STRING_CALLBACK, VOID_CALLBACK};
 
 typedef struct zootcl_callbackContext
 {

@@ -288,7 +288,7 @@ zootcl_data_completion_callback (int rc, const char *value, int valueLen, const 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
 	evPtr->event.proc = zootcl_EventProc;
 
-	evPtr->callbackType = DATA;
+	evPtr->callbackType = DATA_CALLBACK;
 	evPtr->commandObj = ztc->callbackObj;
 
 	evPtr->data.rc = rc;
@@ -315,6 +315,72 @@ zootcl_data_completion_callback (int rc, const char *value, int valueLen, const 
 /*
  *--------------------------------------------------------------
  *
+ * zootcl_string_completion_callback -- string completion callback function
+ *
+ * we can't call Tcl directly here because this has occurred
+ * asynchronously to whatever the interpreter is doing, so
+ * we queue an event to the interpreter instead.
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_string_completion_callback (int rc, const char *value, const void *context)
+{
+	zootcl_callbackEvent *evPtr;
+	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
+
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
+
+	evPtr->callbackType = STRING_CALLBACK;
+	evPtr->commandObj = ztc->callbackObj;
+
+	evPtr->data.rc = rc;
+
+	// if value is NULL then there is no value associated with this znode
+	// we set to NULL and the other end (the event handler) will discriminate
+	if (value == NULL) {
+		evPtr->data.dataObj = NULL;
+	} else {
+		evPtr->data.dataObj = Tcl_NewStringObj (value, -1);
+	}
+
+    evPtr->zo = ztc->zo;
+	ckfree(ztc);
+
+	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
+ * zootcl_void_completion_callback -- void completion callback function
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_void_completion_callback (int rc, const void *context)
+{
+	zootcl_callbackEvent *evPtr;
+	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
+
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
+
+	evPtr->callbackType = VOID_CALLBACK;
+	evPtr->commandObj = ztc->callbackObj;
+	evPtr->data.dataObj = NULL;
+
+	evPtr->data.rc = rc;
+    evPtr->zo = ztc->zo;
+	ckfree(ztc);
+
+	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
  * zootcl_watcher -- watcher callback function
  *
  * we can't call Tcl directly here because this has occurred
@@ -330,7 +396,7 @@ void zootcl_watcher (zhandle_t *zh, int type, int state, const char *path, void*
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
 	evPtr->event.proc = zootcl_EventProc;
 
-	evPtr->callbackType = WATCHER;
+	evPtr->callbackType = WATCHER_CALLBACK;
     evPtr->zo = (zootcl_objectClientData *)zoo_get_context (zh);
 	evPtr->commandObj = (Tcl_Obj *)context;
 
@@ -373,7 +439,7 @@ void zootcl_init_callback (zhandle_t *zh, int type, int state, const char *path,
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
 	evPtr->event.proc = zootcl_EventProc;
 
-	evPtr->callbackType = WATCHER;
+	evPtr->callbackType = WATCHER_CALLBACK;
     evPtr->zo = zo;
 	evPtr->commandObj = zo->initCallbackObj;
 
@@ -613,7 +679,7 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 
 
 	switch(evPtr->callbackType) {
-		case WATCHER:
+		case WATCHER_CALLBACK:
 			listObjv[element++] = Tcl_NewStringObj ("path", -1);
 			listObjv[element++] = Tcl_NewStringObj (evPtr->watcher.path, -1);
 
@@ -625,7 +691,9 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 
 			break;
 
-		case DATA:
+		case VOID_CALLBACK:
+		case DATA_CALLBACK:
+		case STRING_CALLBACK:
 			listObjv[element++] = Tcl_NewStringObj ("status", -1);
 			listObjv[element++] = Tcl_NewStringObj (zootcl_error_to_code_string (evPtr->data.rc), -1);
 
@@ -633,8 +701,11 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 				listObjv[element++] = Tcl_NewStringObj ("data", -1);
 				listObjv[element++] = evPtr->data.dataObj;
 
-				listObjv[element++] = Tcl_NewStringObj ("version", -1);
-				listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.version);
+				if (evPtr->callbackType == DATA_CALLBACK) {
+					listObjv[element++] = Tcl_NewStringObj ("version", -1);
+					listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.version);
+				}
+				break;
 			}
 	}
 
@@ -899,6 +970,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		case OPT_CREATE:
 		{
 			static CONST char *subOptions[] = {
+				"-async",
 				"-value",
 				"-ephemeral",
 				"-sequence",
@@ -906,6 +978,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			};
 
 			enum subOptions {
+				SUBOPT_ASYNC,
 				SUBOPT_VALUE,
 				SUBOPT_EPHEMERAL,
 				SUBOPT_SEQUENCE
@@ -917,12 +990,13 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			int flags = 0;
 
 			if (objc < 3)  {
-				Tcl_WrongNumArgs (interp, 2, objv, "path ?-value value? ?-ephemeral? ?-sequence?");
+				Tcl_WrongNumArgs (interp, 2, objv, "path ?-value value? ?-ephemeral? ?-sequence? ?-async callback?");
 				return TCL_ERROR;
 			}
 			path = Tcl_GetString (objv[2]);
 			int i;
 			int suboptIndex = 0;
+			Tcl_Obj *callbackObj = Tcl_NewObj();
 
 			for (i = 3; i < objc; i++) {
 				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
@@ -931,6 +1005,16 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 				}
 
 				switch ((enum subOptions) suboptIndex) {
+					case SUBOPT_ASYNC:
+					{
+						if (i + 1 >= objc) {
+							Tcl_WrongNumArgs (interp, 2, objv, "-async callback");
+							return TCL_ERROR;
+						}
+						callbackObj = objv[++i];
+						Tcl_IncrRefCount (callbackObj);
+						break;
+					}
 					case SUBOPT_VALUE:
 					{
 						if (i + 1 >= objc) {
@@ -954,7 +1038,16 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 
 			char returnPathBuf[1024*1024];
 
-			int status = zoo_create (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, returnPathBuf, sizeof(returnPathBuf));
+			int status;
+
+			if (callbackObj == NULL) {
+				status = zoo_create (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, returnPathBuf, sizeof(returnPathBuf));
+			} else {
+				zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+				ztc->callbackObj = callbackObj;
+				ztc->zo = zo;
+				status = zoo_acreate (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, zootcl_string_completion_callback, ztc);
+			}
 			if (status == ZOK) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
 			}
@@ -963,11 +1056,25 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 
 		case OPT_DELETE:
 		{
+			Tcl_Obj *callbackObj = NULL;
+			int status;
+
+			static CONST char *subOptions[] = {
+				"-async",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_ASYNC
+			};
+
 			char *path;
 			int version = 0;
+			int i;
+			int suboptIndex = 0;
 
-			if (objc != 4) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path version");
+			if ((objc < 4) || (objc > 6)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "path version ?-async callback?");
 				return TCL_ERROR;
 			}
 
@@ -977,7 +1084,35 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 				return TCL_ERROR;
 			}
 
-			int status = zoo_delete (zh, path, version);
+			for (i = 4; i < objc; i++) {
+				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+					TCL_EXACT, &suboptIndex) != TCL_OK) {
+					return TCL_ERROR;
+				}
+
+				switch ((enum subOptions) suboptIndex) {
+					case SUBOPT_ASYNC:
+					{
+						if (i + 1 >= objc) {
+							Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+							return TCL_ERROR;
+						}
+						callbackObj = objv[++i];
+						Tcl_IncrRefCount (callbackObj);
+						break;
+					}
+				}
+			}
+
+			if (callbackObj == NULL) {
+				status = zoo_delete (zh, path, version);
+			} else {
+				zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+				ztc->callbackObj = callbackObj;
+				ztc->zo = zo;
+				status = zoo_adelete (zh, path, version, zootcl_void_completion_callback, ztc);
+			}
+
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
@@ -1083,7 +1218,7 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 
 		case OPT_INIT: {
 		    int timeout;
-			Tcl_Obj *callbackObj = Tcl_NewObj();
+			Tcl_Obj *callbackObj = NULL;
 
 			static CONST char *subOptions[] = {
 				"-async",
