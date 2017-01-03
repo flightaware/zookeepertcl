@@ -1021,13 +1021,27 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 
 		case OPT_SET:
 		{
+			Tcl_Obj *callbackObj = NULL;
+
+			static CONST char *subOptions[] = {
+				"-async",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_ASYNC
+			};
+
 			char *path;
 			char *buffer;
 			int bufferLen = 0;
 			int version = 0;
 
-			if (objc != 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "path data version");
+			int i;
+			int suboptIndex = 0;
+
+			if ((objc < 5) || (objc > 7)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "path data version ?-async callback?");
 				return TCL_ERROR;
 			}
 
@@ -1038,7 +1052,37 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 				return TCL_ERROR;
 			}
 
-			int status = zoo_set (zh, path, buffer, bufferLen, version);
+			for (i = 5; i < objc; i++) {
+				if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+					TCL_EXACT, &suboptIndex) != TCL_OK) {
+					return TCL_ERROR;
+				}
+
+				switch ((enum subOptions) suboptIndex) {
+					case SUBOPT_ASYNC:
+					{
+						if (i + 1 >= objc) {
+							Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+							return TCL_ERROR;
+						}
+						callbackObj = objv[++i];
+						Tcl_IncrRefCount (callbackObj);
+						break;
+					}
+				}
+			}
+
+			int status;
+
+			if (callbackObj == NULL) {
+				status = zoo_set (zh, path, buffer, bufferLen, version);
+			} else {
+				zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+				ztc->callbackObj = callbackObj;
+				ztc->zo = zo;
+
+				status = zoo_aset (zh, path, buffer, bufferLen, version, zootcl_stat_completion_callback, ztc);
+			}
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
