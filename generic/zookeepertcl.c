@@ -334,7 +334,6 @@ zootcl_string_completion_callback (int rc, const char *value, const void *contex
 
 	evPtr->callbackType = STRING_CALLBACK;
 	evPtr->commandObj = ztc->callbackObj;
-
 	evPtr->data.rc = rc;
 
 	// if value is NULL then there is no value associated with this znode
@@ -347,6 +346,45 @@ zootcl_string_completion_callback (int rc, const char *value, const void *contex
 
     evPtr->zo = ztc->zo;
 	ckfree(ztc);
+
+	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
+ * zootcl_strings_completion_callback -- multi-string completion callback function
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_strings_completion_callback (int rc, const struct String_vector *strings, const void *context)
+{
+	zootcl_callbackEvent *evPtr;
+	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
+	int i;
+
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
+
+	evPtr->callbackType = STRING_CALLBACK;
+	evPtr->commandObj = ztc->callbackObj;
+	evPtr->data.rc = rc;
+    evPtr->zo = ztc->zo;
+	ckfree(ztc);
+
+	// marshall the zookeeper strings into Tcl string objects
+	// and make a Tcl list object of them
+	Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * strings->count);
+
+	for (i = 0; i < strings->count; i++) {
+		listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
+	}
+
+	Tcl_Obj *listObj = Tcl_NewListObj (strings->count, listObjv);
+	ckfree (listObjv);
+
+	evPtr->data.dataObj = listObj;
 
 	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 }
@@ -370,7 +408,6 @@ zootcl_void_completion_callback (int rc, const void *context)
 	evPtr->callbackType = VOID_CALLBACK;
 	evPtr->commandObj = ztc->callbackObj;
 	evPtr->data.dataObj = NULL;
-
 	evPtr->data.rc = rc;
     evPtr->zo = ztc->zo;
 	ckfree(ztc);
@@ -843,7 +880,7 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 		SUBOPT_STAT
 	};
 
-	char *path;
+	const char *path;
 	char buffer[1024*1024];
 	int bufferLen = sizeof(buffer);
 	watcher_fn wfn = NULL;
@@ -975,27 +1012,70 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 int
 zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
+	Tcl_Obj *callbackObj = NULL;
+
+	static CONST char *subOptions[] = {
+		"-async",
+		NULL
+	};
+
+	enum subOptions {
+		SUBOPT_ASYNC
+	};
+
 	char *path;
 	struct String_vector strings;
 	int i;
+	int suboptIndex = 0;
+	int status;
 
-	if (objc != 3) {
-		Tcl_WrongNumArgs (interp, 2, objv, "path");
+	if ((objc < 3) || (objc > 5)) {
+		Tcl_WrongNumArgs (interp, 2, objv, "path ?-async callback?");
 		return TCL_ERROR;
 	}
 
 	path = Tcl_GetString (objv[2]);
-	int status = zoo_wget_children (zh, path, NULL, NULL, &strings);
-	if (status != ZOK) {
-		return zootcl_set_tcl_return_code (interp, status);
-	}
 
-	for (i = 0; i < strings.count; i++) {
-		if (Tcl_ListObjAppendElement (interp, Tcl_GetObjResult (interp), Tcl_NewStringObj (strings.data[i], -1)) == TCL_ERROR) {
+	for (i = 3; i < objc; i++) {
+		if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
+			TCL_EXACT, &suboptIndex) != TCL_OK) {
 			return TCL_ERROR;
 		}
+
+		switch ((enum subOptions) suboptIndex) {
+			case SUBOPT_ASYNC:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+					return TCL_ERROR;
+				}
+				callbackObj = objv[++i];
+				Tcl_IncrRefCount (callbackObj);
+				break;
+			}
+		}
 	}
-	return TCL_OK;
+
+	if (callbackObj == NULL) {
+		status = zoo_wget_children (zh, path, NULL, NULL, &strings);
+
+		if (status != ZOK) {
+			return zootcl_set_tcl_return_code (interp, status);
+		}
+
+		for (i = 0; i < strings.count; i++) {
+			if (Tcl_ListObjAppendElement (interp, Tcl_GetObjResult (interp), Tcl_NewStringObj (strings.data[i], -1)) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+		}
+	} else {
+		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ztc->callbackObj = callbackObj;
+		ztc->zo = zo;
+		status = zoo_awget_children (zh, path, NULL, NULL, zootcl_strings_completion_callback, ztc);
+	}
+
+	return zootcl_set_tcl_return_code (interp, status);
 }
 
 /*
@@ -1069,8 +1149,10 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 	int status;
 
 	if (callbackObj == NULL) {
+		// synchronous set
 		status = zoo_set (zh, path, buffer, bufferLen, version);
 	} else {
+		// asynchronous set
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
