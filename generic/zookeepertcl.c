@@ -381,6 +381,35 @@ zootcl_void_completion_callback (int rc, const void *context)
 /*
  *--------------------------------------------------------------
  *
+ * zootcl_stat_completion_callback -- string completion callback function
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_stat_completion_callback (int rc, const struct Stat *stat, const void *context)
+{
+	zootcl_callbackEvent *evPtr;
+	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
+
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
+
+	evPtr->callbackType = STAT_CALLBACK;
+	evPtr->commandObj = ztc->callbackObj;
+
+	evPtr->data.rc = rc;
+	evPtr->data.dataObj = NULL;
+	evPtr->data.stat = *stat;
+
+    evPtr->zo = ztc->zo;
+	ckfree(ztc);
+
+	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
  * zootcl_watcher -- watcher callback function
  *
  * we can't call Tcl directly here because this has occurred
@@ -669,7 +698,7 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	}
 
 	// construct callback argument as a list
-	Tcl_Obj *listObjv[20];
+	Tcl_Obj *listObjv[40];
 	int element = 0;
 
 	listObjv[element++] = Tcl_NewStringObj ("zk", -1);
@@ -705,8 +734,46 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 					listObjv[element++] = Tcl_NewStringObj ("version", -1);
 					listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.version);
 				}
-				break;
 			}
+			break;
+
+		case STAT_CALLBACK:
+			listObjv[element++] = Tcl_NewStringObj ("status", -1);
+			listObjv[element++] = Tcl_NewStringObj (zootcl_error_to_code_string (evPtr->data.rc), -1);
+
+			listObjv[element++] = Tcl_NewStringObj ("czxid", -1);
+			listObjv[element++] = Tcl_NewLongObj (evPtr->data.stat.czxid);
+
+			listObjv[element++] = Tcl_NewStringObj ("mzxid", -1);
+			listObjv[element++] = Tcl_NewLongObj (evPtr->data.stat.mzxid);
+
+			listObjv[element++] = Tcl_NewStringObj ("ctime", -1);
+			listObjv[element++] = Tcl_NewLongObj (evPtr->data.stat.ctime);
+
+			listObjv[element++] = Tcl_NewStringObj ("mtime", -1);
+			listObjv[element++] = Tcl_NewLongObj (evPtr->data.stat.mtime);
+
+			listObjv[element++] = Tcl_NewStringObj ("version", -1);
+			listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.version);
+
+			listObjv[element++] = Tcl_NewStringObj ("cversion", -1);
+			listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.cversion);
+
+			listObjv[element++] = Tcl_NewStringObj ("aversion", -1);
+			listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.aversion);
+
+			listObjv[element++] = Tcl_NewStringObj ("ephemeralOwner", -1);
+			listObjv[element++] = Tcl_NewLongObj (evPtr->data.stat.ephemeralOwner);
+
+			listObjv[element++] = Tcl_NewStringObj ("dataLength", -1);
+			listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.dataLength);
+
+			listObjv[element++] = Tcl_NewStringObj ("numChildren", -1);
+			listObjv[element++] = Tcl_NewIntObj (evPtr->data.stat.numChildren);
+
+			listObjv[element++] = Tcl_NewStringObj ("pzxid", -1);
+			listObjv[element++] = Tcl_NewLongObj (evPtr->data.stat.pzxid);
+			break;
 	}
 
 	Tcl_Obj *listObj = Tcl_NewListObj (element, listObjv);
@@ -893,23 +960,31 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			int status;
 
 			if ((enum options) optIndex == OPT_GET) {
-				if (dataCallbackObj != NULL) {
+				if (dataCallbackObj == NULL) {
+					status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
+					if (status == ZOK) {
+						Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+					}
+				} else {
 					zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 					ztc->callbackObj = dataCallbackObj;
 					ztc->zo = zo;
 
 					status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zootcl_data_completion_callback, ztc);
-				} else {
-					status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
-					if (status == ZOK) {
-						Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
-					}
 				}
 			} else {
-				status = zoo_wexists (zh, path, wfn, (void *)watcherCallbackObj, stat);
-				if (status == ZOK || status == ZNONODE) {
-					Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
-					status = ZOK; // ZNONODE would be an error below but it's ok here
+				if (dataCallbackObj == NULL) {
+					status = zoo_wexists (zh, path, wfn, (void *)watcherCallbackObj, stat);
+					if (status == ZOK || status == ZNONODE) {
+						Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
+						status = ZOK; // ZNONODE would be an error below but it's ok here
+					}
+				} else {
+					zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+					ztc->callbackObj = dataCallbackObj;
+					ztc->zo = zo;
+
+					status = zoo_awexists (zh, path, wfn, (void *)watcherCallbackObj, zootcl_stat_completion_callback, ztc);
 				}
 			}
 
