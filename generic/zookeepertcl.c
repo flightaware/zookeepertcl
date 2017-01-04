@@ -545,7 +545,7 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 	// we are freeing memory in a sec, clear the magic number
 	// so attempt to reuse a freed object will be an assertion
 	// failure
-    zo->zookeeper_object_magic == -1;
+    zo->zookeeper_object_magic = -1;
 
 	zookeeper_close (zo->zh);
     ckfree((char *)clientData);
@@ -583,7 +583,10 @@ zootcl_socket_ready (ClientData clientData, int mask)
 	}
 
 	int status = zookeeper_process (zo->zh, events);
-// printf("zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
+	if ((status != ZOK) && (status != ZNOTHING)) {
+		fprintf(stderr, "zookeeper_process abnormal status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
+	}
+fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 
 	Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, clientData);
 }
@@ -653,10 +656,10 @@ zootcl_EventSetupProc (ClientData clientData, int flags) {
 
 	// find out what zookeeper is interested in
 	int status = zookeeper_interest (zh, &fd, &interest, &tv);
-// printf("zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 
 	if ((zo->currentFD != -1) && (fd != zo->currentFD)) {
-printf("fd changed from %d to %d!\n", zo->currentFD, fd);
+fprintf(stderr,"fd changed from %d to %d!\n", zo->currentFD, fd);
 		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
 		Tcl_DetachChannel (zo->interp, zo->channel);
 		zo->channel = NULL;
@@ -664,25 +667,24 @@ printf("fd changed from %d to %d!\n", zo->currentFD, fd);
 	}
 
 	if ((status != ZOK) && (status != ZNOTHING)) {
-printf("zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 		return;
 	}
 
 	// if fd is -1 there is no connection
 	if (fd == -1) return;
 
+	/*
 	tv.tv_usec -= 200000;
 	if (tv.tv_usec < 0) {
 		tv.tv_usec += 1000000;
 		tv.tv_sec--;
 	}
+	*/
 
 	// convert the struct timeval time-until-zookeeper-wants-another-check
 	// to a Tcl_Time
 	Tcl_Time time = {tv.tv_sec, tv.tv_usec};
-
-
-
 	Tcl_SetMaxBlockTime (&time);
 
 	// create Tcl read and write intereest flags based on
@@ -700,6 +702,7 @@ printf("zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, sec
 	// if readOrWrite is still 0 then zookeeper has no pending interest,
 	// we're done
 	if (readOrWrite == 0) {
+		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
 		return;
 	}
 
@@ -745,7 +748,7 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
-	// printf("zootcl_EventProc invoked\n");
+fprintf(stderr, "zootcl_EventProc invoked\n");
 
 	// crack the command object.  it may be a list of multiple elements
 	// and we want that to work, like it could be an object and a method or
