@@ -11,6 +11,7 @@
 #include "zookeepertcl.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 int
 zootcl_EventProc (Tcl_Event *tevPtr, int flags);
@@ -376,13 +377,14 @@ zootcl_strings_completion_callback (int rc, const struct String_vector *strings,
 
 	// marshall the zookeeper strings into Tcl string objects
 	// and make a Tcl list object of them
-	Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * strings->count);
+        int count = strings ? strings->count : 0;
+	Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
 
-	for (i = 0; i < strings->count; i++) {
+	for (i = 0; i < count; i++) {
 		listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
 	}
 
-	Tcl_Obj *listObj = Tcl_NewListObj (strings->count, listObjv);
+	Tcl_Obj *listObj = Tcl_NewListObj (count, listObjv);
 	ckfree (listObjv);
 
 	evPtr->data.dataObj = listObj;
@@ -588,7 +590,6 @@ zootcl_socket_ready (ClientData clientData, int mask)
 	}
 fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 
-	Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, clientData);
 }
 
 /*
@@ -712,9 +713,9 @@ fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, writ
 		zo->channel = Tcl_MakeFileChannel (((void *)(intptr_t) fd), (TCL_READABLE|TCL_WRITABLE));
 		zo->currentFD = fd;
 		// assert (Tcl_SetChannelOption (NULL, zo->channel, "-blocking", "0") == TCL_OK);
-	}
 
 	Tcl_CreateChannelHandler (zo->channel, readOrWrite, zootcl_socket_ready, (ClientData)zo);
+	}
 }
 
 /*
