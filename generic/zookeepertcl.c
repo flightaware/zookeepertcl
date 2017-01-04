@@ -685,7 +685,8 @@ fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, writ
 
 	// convert the struct timeval time-until-zookeeper-wants-another-check
 	// to a Tcl_Time
-	Tcl_Time time = {tv.tv_sec, tv.tv_usec};
+	// Tcl_Time time = {tv.tv_sec, tv.tv_usec};
+	Tcl_Time time = {1, 0};
 	Tcl_SetMaxBlockTime (&time);
 
 	// create Tcl read and write intereest flags based on
@@ -713,8 +714,7 @@ fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, writ
 		zo->channel = Tcl_MakeFileChannel (((void *)(intptr_t) fd), (TCL_READABLE|TCL_WRITABLE));
 		zo->currentFD = fd;
 		// assert (Tcl_SetChannelOption (NULL, zo->channel, "-blocking", "0") == TCL_OK);
-
-	Tcl_CreateChannelHandler (zo->channel, readOrWrite, zootcl_socket_ready, (ClientData)zo);
+	        Tcl_CreateChannelHandler (zo->channel, readOrWrite, zootcl_socket_ready, (ClientData)zo);
 	}
 }
 
