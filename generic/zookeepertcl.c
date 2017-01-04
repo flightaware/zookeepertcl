@@ -260,11 +260,12 @@ zootcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
 		return TCL_OK;
 	}
 	const char *stateString = zootcl_error_to_code_string (status);
+	const char *messageString = zerror (status);
 
 	// NB this needs to be spruced up to set errorCode and a
 	// better error message and stuff
-	Tcl_SetObjResult (interp, Tcl_NewStringObj (stateString, -1));
-	Tcl_SetErrorCode(interp, "ZOOKEEPER", stateString, (char *) NULL);
+	Tcl_SetObjResult (interp, Tcl_NewStringObj (messageString, -1));
+	Tcl_SetErrorCode(interp, "ZOOKEEPER", stateString, messageString, (char *) NULL);
 	return TCL_ERROR;
 }
 
@@ -1255,16 +1256,19 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 					return TCL_ERROR;
 				}
 				value = Tcl_GetStringFromObj (objv[++i], &valueLen);
+				break;
 			}
 
 			case SUBOPT_EPHEMERAL:
 			{
 				flags |= ZOO_EPHEMERAL;
+				break;
 			}
 
 			case SUBOPT_SEQUENCE:
 			{
 				flags |= ZOO_SEQUENCE;
+				break;
 			}
 		}
 	}
@@ -1592,14 +1596,14 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 				}
 			}
 			//
-			// allocate one of our kafka client data objects for Tcl and configure it
+			// allocate one of our zookeeper client data objects for Tcl and configure it
 			zo = (zootcl_objectClientData *)ckalloc (sizeof (zootcl_objectClientData));
 			zo->zookeeper_object_magic = ZOOKEEPER_OBJECT_MAGIC;
 			zo->interp = interp;
 			zo->threadId = Tcl_GetCurrentThread ();
 			zo->channel = NULL;
-			zo->initCallbackObj = callbackObj;
 			zo->currentFD = -1;
+			zo->initCallbackObj = callbackObj;
 
 			zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
 			// zhandle_t *zh = zookeeper_init (hosts, NULL, timeout, NULL, zo, 0);

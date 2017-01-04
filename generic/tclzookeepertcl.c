@@ -68,13 +68,10 @@ Zookeeper_Init(Tcl_Interp *interp)
  *
  * Zookeeper_SafeInit --
  *
- *	Initialize the kafkatcl in a safe interpreter.
+ *	Initialize zookeepertcl in a safe interpreter.
  *
  * Results:
  *	A standard Tcl result
- *
- * Side effects:
- *	One new command "kafkatcl" is added to the Tcl interpreter.
  *
  *----------------------------------------------------------------------
  */
