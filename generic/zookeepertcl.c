@@ -1688,6 +1688,7 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 			}
 
 			zoo_set_debug_level (zooLogLevel);
+			break;
 		}
 
 	}
