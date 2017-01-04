@@ -993,21 +993,25 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	if (asyncCallbackObj == NULL) {
 		// do the synchronous version of wexists
 		status = zoo_wexists (zh, path, wfn, (void *)watcherCallbackObj, stat);
-		if (status == ZOK || status == ZNONODE) {
-			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
-			if (statArray != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+		if (status == ZNONODE) {
+			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
+			return TCL_OK;
+		}
+
+		if (status != ZOK) {
+			return zootcl_set_tcl_return_code (interp, status);
+		}
+
+		Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
+
+		if (statArray != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+			return TCL_ERROR;
+		}
+
+		if (versionVarObj != NULL) {
+			if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (stat->version), TCL_LEAVE_ERR_MSG) == NULL) {
 				return TCL_ERROR;
 			}
-
-			if (versionVarObj != NULL) {
-				if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (stat->version), TCL_LEAVE_ERR_MSG) == NULL) {
-					return TCL_ERROR;
-				}
-			}
-			// ZNONODE would be an error below but we don't want an error
-			// (we are content to return 0 saying the node doesn't exist,
-			// so we switch it back to ZOK)
-			status = ZOK;
 		}
 	} else {
 		// do the asynchronous version of znode existence check

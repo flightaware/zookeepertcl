@@ -98,18 +98,26 @@ zk create path ?-value value? ?-ephemeral? ?-sequence?
 Create the path.  Value, if provided, is set as the value at the path else the znode's value is left as null.  **-ephemeral** makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If **-sequence** is provided, a unique monotonically increasing sequence number is appended to the pathname.  This can be very handy for the kinds of things zookeeper is typically used for.  Please investigate general zookeeper documentation for more details.
 
 ```tcl
-zk get $path ?-watch code? ?-stat array? ?-async code?
+zk get $path ?-watch code? ?-stat array? ?-async callback? ?-data dataVar? ?-version versionVar?
 ```
+Get the data at znode *$path*.  A watch is set if the node exists and **-watch** is specified; code is invoked when the znode is changed, with an argument of a list of key-value pairs about the watched object.  If **-stat** is specified, *array* is the name of an array that is filled with stat data such as *version* and some other stuff.
 
-Get the data at znode *$path*.  A watch is set if **-watch** is specified; code is invoked when the znode is changed, with an argument of a list of key-value pairs about the watched object.  If **-stat** is specified, *array* is the name of an array that is filled with stat data such as *version* and some other stuff.
+If **-data** is specified, *dataVar* is the name of an array that the data is stored into, and get returns 1 if the node exists and 0 if it doesn't.  (Without the -data option, the value is returned or an error is thrown if the node doesn't exist.)
+
+When **-version** is specified, *versionVar* is stored with the version number of the znode if the node exists.
+
 
 If **-async** is specified, code is executed as a callback when the result has come in from zookeeper.  The callback will be invoked with an argument consisting of a Tcl list of key-value pairs.  The name of the zookeeper object will be in *zk*, the status (like *ZOK*), in status, and if there is data attached to the znode, the data as *data* and version as *version*.
 
+It is an error to try to specify -data, -version or -stat along with -async.
+
 ```tcl
-zk exists path ?-watch code? ?-stat array?
+zk exists path ?-watch code? ?-stat array? ?-async callback? ?-version versionVar?
 ```
 
-Return 1 if the path exists and 0 if it doesn't.  **-watch** and **-stat** are the same as for **get** above.
+Return 1 if the path exists and 0 if it doesn't.  **-watch**, **-stat** and **-version** are the same as for **get** above.
+
+If **-async** is specified, the request is made asynchronously and *callback* is invoked with a Tcl list of key-value pairs as an argument when the answer arrives.
 
 ```tcl
 zk children $path
