@@ -497,6 +497,8 @@ void zootcl_init_callback (zhandle_t *zh, int type, int state, const char *path,
 	// zookeeper_init
     zootcl_objectClientData *zo = (zootcl_objectClientData *)zoo_get_context (zh);
 
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+
 	// if there's no callback function, return
 	if (zo->initCallbackObj == NULL) {
 		return;
@@ -575,7 +577,7 @@ zootcl_socket_ready (ClientData clientData, int mask)
 	}
 
 	int status = zookeeper_process (zo->zh, events);
-printf("zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
+// printf("zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 
 	Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, clientData);
 }
@@ -645,14 +647,23 @@ zootcl_EventSetupProc (ClientData clientData, int flags) {
 
 	// find out what zookeeper is interested in
 	int status = zookeeper_interest (zh, &fd, &interest, &tv);
-// printf("async check code %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+// printf("zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+
+	if ((zo->currentFD != -1) && (fd != zo->currentFD)) {
+printf("fd changed from %d to %d!\n", zo->currentFD, fd);
+		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
+		Tcl_DetachChannel (zo->interp, zo->channel);
+		zo->channel = NULL;
+		zo->currentFD = -1;
+	}
+
 	if ((status != ZOK) && (status != ZNOTHING)) {
+printf("zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 		return;
 	}
 
 	// if fd is -1 there is no connection
 	if (fd == -1) return;
-
 
 	// convert the struct timeval time-until-zookeeper-wants-another-check
 	// to a Tcl_Time
@@ -690,6 +701,8 @@ zootcl_EventSetupProc (ClientData clientData, int flags) {
 	// zookeeper's socket
 	if (zo->channel == NULL) {
 		zo->channel = Tcl_MakeFileChannel (((void *)(intptr_t) fd), (TCL_READABLE|TCL_WRITABLE));
+		zo->currentFD = fd;
+		// assert (Tcl_SetChannelOption (NULL, zo->channel, "-blocking", "0") == TCL_OK);
 	}
 
 	Tcl_CreateChannelHandler (zo->channel, readOrWrite, zootcl_socket_ready, (ClientData)zo);
@@ -723,6 +736,8 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 
 	int evalObjc;
 	Tcl_Obj **evalObjv;
+
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
 	// printf("zootcl_EventProc invoked\n");
 
@@ -887,6 +902,8 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 	struct Stat *stat = NULL;
 	struct Stat statBuf;
 
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+
 	if (objc < 3) {
 		Tcl_WrongNumArgs (interp, 2, objv, "path ?-watch code? ?-stat statArray? ?-async command?");
 		return TCL_ERROR;
@@ -1029,6 +1046,8 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 	int suboptIndex = 0;
 	int status;
 
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+
 	if ((objc < 3) || (objc > 5)) {
 		Tcl_WrongNumArgs (interp, 2, objv, "path ?-async callback?");
 		return TCL_ERROR;
@@ -1114,6 +1133,8 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 	int i;
 	int suboptIndex = 0;
 
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+
 	if ((objc < 5) || (objc > 7)) {
 		Tcl_WrongNumArgs (interp, 2, objv, "path data version ?-async callback?");
 		return TCL_ERROR;
@@ -1198,6 +1219,8 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	int valueLen = -1;
 	char *value = NULL;
 	int flags = 0;
+
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
 	if (objc < 3)  {
 		Tcl_WrongNumArgs (interp, 2, objv, "path ?-value value? ?-ephemeral? ?-sequence? ?-async callback?");
@@ -1298,6 +1321,8 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	int i;
 	int suboptIndex = 0;
 
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+
 	if ((objc < 4) || (objc > 6)) {
 		Tcl_WrongNumArgs (interp, 2, objv, "path version ?-async callback?");
 		return TCL_ERROR;
@@ -1359,8 +1384,10 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 {
     zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+
 	ZOOAPI zhandle_t *zh = zo->zh;
 	int optIndex;
+
 
     static CONST char *options[] = {
         "get",
@@ -1572,6 +1599,7 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 			zo->threadId = Tcl_GetCurrentThread ();
 			zo->channel = NULL;
 			zo->initCallbackObj = callbackObj;
+			zo->currentFD = -1;
 
 			zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
 			// zhandle_t *zh = zookeeper_init (hosts, NULL, timeout, NULL, zo, 0);
