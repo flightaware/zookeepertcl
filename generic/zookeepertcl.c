@@ -887,13 +887,17 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 		"-watch",
 		"-async",
 		"-stat",
+		"-data",
+		"-version",
 		NULL
 	};
 
 	enum subOptions {
 		SUBOPT_WATCH,
 		SUBOPT_ASYNC,
-		SUBOPT_STAT
+		SUBOPT_STAT,
+		SUBOPT_DATA,
+		SUBOPT_VERSION
 	};
 
 	const char *path;
@@ -906,7 +910,7 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
 	if (objc < 3) {
-		Tcl_WrongNumArgs (interp, 2, objv, "path ?-watch code? ?-stat statArray? ?-async command?");
+		Tcl_WrongNumArgs (interp, 2, objv, "path ?-watch code? ?-stat statArray? ?-async callback? ?-data dataVar? ?-version versionVar?");
 		return TCL_ERROR;
 	}
 
@@ -917,6 +921,8 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 	Tcl_Obj *watcherCallbackObj = NULL;
 	Tcl_Obj *dataCallbackObj = NULL;
 	char *statArray = NULL;
+	Tcl_Obj *dataVarObj = NULL;
+	Tcl_Obj *versionVarObj = NULL;
 
 	for (i = 3; i < objc; i++) {
 		if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
@@ -928,7 +934,7 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 			case SUBOPT_WATCH:
 			{
 				if (i + 1 >= objc) {
-					Tcl_WrongNumArgs (interp, 2, objv, "-watch code");
+					Tcl_WrongNumArgs (interp, 2, objv, "path ... -watch code");
 					return TCL_ERROR;
 				}
 				watcherCallbackObj = objv[++i];
@@ -939,7 +945,7 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 			case SUBOPT_ASYNC:
 			{
 				if (i + 1 >= objc) {
-					Tcl_WrongNumArgs (interp, 2, objv, "-async code");
+					Tcl_WrongNumArgs (interp, 2, objv, "path ... -async code");
 					return TCL_ERROR;
 				}
 				dataCallbackObj = objv[++i];
@@ -950,19 +956,52 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 			case SUBOPT_STAT:
 			{
 				if (i + 1 >= objc) {
-					Tcl_WrongNumArgs (interp, 2, objv, "-stat statArray");
+					Tcl_WrongNumArgs (interp, 2, objv, "path ... -stat statArray");
 					return TCL_ERROR;
 				}
 				statArray = Tcl_GetString (objv[++i]);
 				stat = &statBuf;
 				break;
 			}
+
+			case SUBOPT_DATA:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "path ... -data dataVar");
+					return TCL_ERROR;
+				}
+				dataVarObj = objv[++i];
+				break;
+			}
+
+			case SUBOPT_VERSION:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "path ... -version versionVar");
+					return TCL_ERROR;
+				}
+				versionVarObj = objv[++i];
+				stat = &statBuf;
+				break;
+			}
 		}
 	}
 
-	if ((dataCallbackObj != NULL) && (statArray != NULL)) {
-		Tcl_SetObjResult (interp, Tcl_NewStringObj ("-stat and -async options are mutually exclusive", -1));
-		return TCL_ERROR;
+	if (dataCallbackObj != NULL) {
+		if (statArray != NULL) {
+			Tcl_SetObjResult (interp, Tcl_NewStringObj ("-stat and -async options are mutually exclusive", -1));
+			return TCL_ERROR;
+		}
+
+		if (dataVarObj != NULL) {
+			Tcl_SetObjResult (interp, Tcl_NewStringObj ("-data and -async options are mutually exclusive", -1));
+			return TCL_ERROR;
+		}
+
+		if (versionVarObj != NULL) {
+			Tcl_SetObjResult (interp, Tcl_NewStringObj ("-version and -async options are mutually exclusive", -1));
+			return TCL_ERROR;
+		}
 	}
 
 	if (watcherCallbackObj != NULL) {
@@ -975,8 +1014,28 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 		// if dataCallbackObj is null, do the synchronous version
 		if (dataCallbackObj == NULL) {
 			status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
-			if (status == ZOK) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+			if (status != ZOK) {
+				return zootcl_set_tcl_return_code (interp, status);
+			}
+
+			if (bufferLen != -1) {
+				if (dataVarObj == NULL) {
+					Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
+				} else {
+					if (Tcl_SetVar2Ex (interp, Tcl_GetString (dataVarObj), NULL, Tcl_NewStringObj (buffer, bufferLen), TCL_LEAVE_ERR_MSG) == NULL) {
+						return TCL_ERROR;
+					}
+				}
+			}
+
+			if (statArray != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+
+			if (versionVarObj != NULL) {
+				if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (stat->version), TCL_LEAVE_ERR_MSG) == NULL) {
+					return TCL_ERROR;
+				}
 			}
 		} else {
 			// do the asynchronous version
@@ -992,8 +1051,14 @@ zootcl_exists_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]
 			status = zoo_wexists (zh, path, wfn, (void *)watcherCallbackObj, stat);
 			if (status == ZOK || status == ZNONODE) {
 				Tcl_SetObjResult (interp, Tcl_NewBooleanObj (status == ZOK));
-				if (stat != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+				if (statArray != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
 					return TCL_ERROR;
+				}
+
+				if (versionVarObj != NULL) {
+					if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (stat->version), TCL_LEAVE_ERR_MSG) == NULL) {
+						return TCL_ERROR;
+					}
 				}
 				// ZNONODE would be an error below but we don't want an error
 				// (we are content to return 0 saying the node doesn't exist,
