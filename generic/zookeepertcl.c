@@ -542,6 +542,11 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
+	// we are freeing memory in a sec, clear the magic number
+	// so attempt to reuse a freed object will be an assertion
+	// failure
+    zo->zookeeper_object_magic == -1;
+
 	zookeeper_close (zo->zh);
     ckfree((char *)clientData);
 }
@@ -666,17 +671,17 @@ printf("zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, sec
 	// if fd is -1 there is no connection
 	if (fd == -1) return;
 
-	// convert the struct timeval time-until-zookeeper-wants-another-check
-	// to a Tcl_Time
-	Tcl_Time time = {tv.tv_sec, tv.tv_usec};
-
-	/*
 	tv.tv_usec -= 200000;
 	if (tv.tv_usec < 0) {
 		tv.tv_usec += 1000000;
 		tv.tv_sec--;
 	}
-	*/
+
+	// convert the struct timeval time-until-zookeeper-wants-another-check
+	// to a Tcl_Time
+	Tcl_Time time = {tv.tv_sec, tv.tv_usec};
+
+
 
 	Tcl_SetMaxBlockTime (&time);
 
