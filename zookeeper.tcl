@@ -26,7 +26,7 @@ namespace eval ::zookeeper  {
 
 	proc read_file {file} {
 		set fp [open $file]
-		set data [read $file]
+		set data [read $fp]
 		close $fp
 		return $data
 	}
@@ -54,7 +54,21 @@ namespace eval ::zookeeper  {
 			$zk set $zpath $data $zversion
 		} else {
 			# the node doesn't exist, create it
-			$zk create $path -value $data
+			$zk create $zpath -value $data
+		}
+	}
+
+	#
+	proc zsync {zk path zpath {pattern *}} {
+		mkpath $zk $zpath
+		set regexp "^${path}(.*)"
+		foreach file [lsort [glob -nocomplain -dir $path -types f $pattern]] {
+			regexp $regexp $file dummy tail
+			copy_file $zk $file $zpath$tail
+		}
+		foreach dir [lsort [glob -nocomplain -dir $path -types d *]] {
+			regexp $regexp $dir dummy tailDir
+			zsync $zk $dir $zpath$tailDir $pattern
 		}
 	}
 } ;# namespace ::zookeeper
