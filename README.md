@@ -8,14 +8,15 @@ Functionality
 
 - Provides a natural Tcl interface
 - Fast
-- Asynchronous
+- Synchronous interface for simplicity and convenience
+- Asynchronous interface for performance
 - Thread safe
 - Free!
 
 License
 ---
 
-Open source under the permissive Berkeley copyright, see file LICENSE
+Open source under the permissive Berkeley copyright; see file [LICENSE](LICENSE).
 
 Requirements
 ---
@@ -85,27 +86,28 @@ zk create /test -value woof
 Option switches provide additional capabilities.
 
 ```tcl
-set node [zk create /k -value woof -ephemeral]
-zk get $node 0 z
+set znode [zk create /k -value woof -ephemeral]
+zk get $znode
 ```
 
 This creates, sets, and fetches the contents of an *ephemeral node* that only lasts for the life of the process, on zookeeper.  You need to use the znode ID returned in place of the one you specified the name of the znode is altered by zookeeper based on what you asked for.  Like /k becomes /k00000000.  (I think this change only occurs if -ephemeral or -sequence is used.)
 
 ```tcl
-zk create path ?-value value? ?-ephemeral? ?-sequence?
+zk create path ?-value value? ?-ephemeral? ?-sequence? ?-async callback?
 ```
 
 Create the path.  Value, if provided, is set as the value at the path else the znode's value is left as null.  **-ephemeral** makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If **-sequence** is provided, a unique monotonically increasing sequence number is appended to the pathname.  This can be very handy for the kinds of things zookeeper is typically used for.  Please investigate general zookeeper documentation for more details.
 
+If **-async** is provided, *callback* will be invoked with a list of key-value pairs containing the status of the operation once it is complete.
+
 ```tcl
 zk get $path ?-watch code? ?-stat array? ?-async callback? ?-data dataVar? ?-version versionVar?
 ```
-Get the data at znode *$path*.  A watch is set if the node exists and **-watch** is specified; code is invoked when the znode is changed, with an argument of a list of key-value pairs about the watched object.  If **-stat** is specified, *array* is the name of an array that is filled with stat data such as *version* and some other stuff.
+Get the data at znode *$path*.  A watch is set if the znode exists and **-watch** is specified; code is invoked when the znode is changed, with an argument of a list of key-value pairs about the watched object.  If **-stat** is specified, *array* is the name of an array that is filled with stat data such as *version* and some other stuff.
 
-If **-data** is specified, *dataVar* is the name of an array that the data is stored into, and get returns 1 if the node exists and 0 if it doesn't.  (Without the -data option, the value is returned or an error is thrown if the node doesn't exist.)
+If **-data** is specified, *dataVar* is the name of an array that the data is stored into, and get returns 1 if the znode exists and 0 if it doesn't.  (Without the -data option, the value is returned or an error is thrown if the znode doesn't exist.)
 
-When **-version** is specified, *versionVar* is stored with the version number of the znode if the node exists.
-
+When **-version** is specified, *versionVar* is stored with the version number of the znode if the znode exists.
 
 If **-async** is specified, code is executed as a callback when the result has come in from zookeeper.  The callback will be invoked with an argument consisting of a Tcl list of key-value pairs.  The name of the zookeeper object will be in *zk*, the status (like *ZOK*), in status, and if there is data attached to the znode, the data as *data* and version as *version*.
 
@@ -119,21 +121,27 @@ Return 1 if the path exists and 0 if it doesn't.  **-watch**, **-stat** and **-v
 
 If **-async** is specified, the request is made asynchronously and *callback* is invoked with a Tcl list of key-value pairs as an argument when the answer arrives.
 
+Neither -watch, -stat or -version can be specified when -async is used.
+
 ```tcl
-zk children $path
+zk children $path ?-async callback?
 ```
 
-Return a Tcl list of the names of the child znodes of the given path.
+Return a Tcl list of the names of the child znodes of the given path.  If **-async** is specified, *callback* is invoked once the data arrives, with a list of key-value pairs such as `zk ::zk status ZOK data bark version 0`.  In this case, the zookeeper object is **::zk**, the status is **ZOK**, the data is **bark** and the version is **0**.
 
 (The C API supports adding a watch with this call but we currently do not.)
 
 ```tcl
-zk set $path $data $version
+zk set $path $data $version ?-async callback?
 ```
 
-Set the znode at the given path to contain the specified data. Version must match or be **-1** which bypasses the version check.  It is a best practice to use the versioning.
+Set the znode at the given path to contain the specified data. Version must match or be **-1** which bypasses the version check.  (It is a best practice to use the versioning.)
 
-Zookeeper supports null data for any znode, and we have only half-implmeneted that for out-of-band detection.  We properly make providing data optional in *set* and *create*, and we set the data in the znode to null properly.  But to close the loop we have to make a way for *get* to provide an out-of-band result, like having it return 1 or 0 and store the results into a variable passed through an argument or something like that.
+Zookeeper supports null data for any znode, and zookeepertcl provides ways to distinguish between a znode with no data and a znode with an empty string as data.  We properly make providing data optional in *create*, so if create is invoked with no **-data** option we leave the data in the znode properly null.
+
+If the **get** method is invoked synchronously with the **-data** option, the specified variable will only be set if there is data associated with the znode.  (Otherwise the variable will be force-unset.)
+
+Also if **get** is used asynchronously then the key-value pairs will not contain a *data* pair if there is no data ssociated with the znode.
 
 ```tcl
 zk delete $path $version
@@ -194,8 +202,8 @@ Errata
 Links
 ---
 
-* [Tcl_CreateEventSource, Tcl_SetMaxBlockTime, Tcl_ThreadQueueEvent]: https://www.tcl.tk/man/tcl/TclLib/Notifier.htm
-* [Tcl_OpenFileChannel, Tcl_DetachChannel] https://www.tcl.tk/man/tcl/TclLib/OpenFileChnl.htm
+* [Tcl_CreateEventSource, Tcl_SetMaxBlockTime, Tcl_ThreadQueueEvent](https://www.tcl.tk/man/tcl/TclLib/Notifier.htm)
+* [Tcl_OpenFileChannel, Tcl_DetachChannel](https://www.tcl.tk/man/tcl/TclLib/OpenFileChnl.htm)
 
 FlightAware
 ---
