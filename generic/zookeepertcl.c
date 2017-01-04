@@ -1169,6 +1169,11 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 	// if asyncCallbackObj is null, do the synchronous version
 	if (asyncCallbackObj == NULL) {
 		status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
+		if ((status == ZNONODE) && (dataVarObj != NULL)) {
+			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
+			return TCL_OK;
+		}
+
 		if (status != ZOK) {
 			return zootcl_set_tcl_return_code (interp, status);
 		}
@@ -1180,6 +1185,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 				if (Tcl_SetVar2Ex (interp, Tcl_GetString (dataVarObj), NULL, Tcl_NewStringObj (buffer, bufferLen), TCL_LEAVE_ERR_MSG) == NULL) {
 					return TCL_ERROR;
 				}
+				Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
 			}
 		}
 
