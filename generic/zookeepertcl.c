@@ -994,6 +994,9 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		// do the synchronous version of wexists
 		status = zoo_wexists (zh, path, wfn, (void *)watcherCallbackObj, stat);
 		if (status == ZNONODE) {
+			if (versionVarObj != NULL) {
+				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
+			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
 			return TCL_OK;
 		}
@@ -1174,6 +1177,13 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 	if (asyncCallbackObj == NULL) {
 		status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
 		if ((status == ZNONODE) && (dataVarObj != NULL)) {
+			// node doesn't exist and they specified -data,
+			// unset data var and version var if defined and
+			// return 0 indicating no node
+			Tcl_UnsetVar (interp, Tcl_GetString (dataVarObj), 0);
+			if (versionVarObj != NULL) {
+				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
+			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
 			return TCL_OK;
 		}
