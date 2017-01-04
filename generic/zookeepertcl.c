@@ -1230,7 +1230,7 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	path = Tcl_GetString (objv[2]);
 	int i;
 	int suboptIndex = 0;
-	Tcl_Obj *callbackObj = Tcl_NewObj();
+	Tcl_Obj *callbackObj = NULL;
 
 	for (i = 3; i < objc; i++) {
 		if (Tcl_GetIndexFromObj (interp, objv[i], subOptions, "suboption",
@@ -1279,14 +1279,14 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 
 	if (callbackObj == NULL) {
 		status = zoo_create (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, returnPathBuf, sizeof(returnPathBuf));
+		if (status == ZOK) {
+			Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
+		}
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
 		status = zoo_acreate (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, zootcl_string_completion_callback, ztc);
-	}
-	if (status == ZOK) {
-		Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
 	}
 	return zootcl_set_tcl_return_code (interp, status);
 }
