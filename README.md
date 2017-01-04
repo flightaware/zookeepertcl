@@ -191,6 +191,12 @@ Errata
 
 * ACLs are not currently supported.
 
+Links
+---
+
+* [Tcl_CreateEventSource, Tcl_SetMaxBlockTime, Tcl_ThreadQueueEvent]: https://www.tcl.tk/man/tcl/TclLib/Notifier.htm
+* [Tcl_OpenFileChannel, Tcl_DetachChannel] https://www.tcl.tk/man/tcl/TclLib/OpenFileChnl.htm
+
 FlightAware
 ---
 FlightAware has released over a dozen applications  (under the free and liberal BSD license) into the open source community. FlightAware's repositories are available on GitHub for public use, discussion, bug reports, and contribution. Read more at https://flightaware.com/about/code/
