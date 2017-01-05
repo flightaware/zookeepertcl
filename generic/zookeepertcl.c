@@ -531,36 +531,6 @@ void zootcl_init_callback (zhandle_t *zh, int type, int state, const char *path,
 }
 
 /*
- *--------------------------------------------------------------
- *
- * zootcl_zookeeperObjectDelete -- command deletion callback routine.
- *
- * Results:
- *      ...destroys the zookeeper object.
- *      ...frees memory.
- *
- * Side effects:
- *      None.
- *
- *--------------------------------------------------------------
- */
-void
-zootcl_zookeeperObjectDelete (ClientData clientData)
-{
-    zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
-
-    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
-
-	// we are freeing memory in a sec, clear the magic number
-	// so attempt to reuse a freed object will be an assertion
-	// failure
-    zo->zookeeper_object_magic = -1;
-
-	zookeeper_close (zo->zh);
-    ckfree((char *)clientData);
-}
-
-/*
  *----------------------------------------------------------------------
  *
  * zootcl_socket_ready --
@@ -597,6 +567,7 @@ zootcl_socket_ready (ClientData clientData, int mask)
 
 	int status = zookeeper_process (zo->zh, events);
 	if ((status != ZOK) && (status != ZNOTHING)) {
+		// NB handle ZCONNECTONLOSS here, callout
 		fprintf(stderr, "zookeeper_process abnormal status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 	}
 fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
@@ -630,7 +601,7 @@ zootcl_EventCommonProc (ClientData clientData, int flags, int doTime) {
 
 	// find out what zookeeper is interested in
 	int status = zookeeper_interest (zh, &fd, &interest, &tv);
-fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 
 	if ((zo->currentFD != -1) && (fd != zo->currentFD)) {
 fprintf(stderr,"fd changed from %d to %d!\n", zo->currentFD, fd);
@@ -641,18 +612,16 @@ fprintf(stderr,"fd changed from %d to %d!\n", zo->currentFD, fd);
 	}
 
 	if ((status != ZOK) && (status != ZNOTHING)) {
-fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 		return;
 	}
 
-	if (doTime) {
-		/*
-		tv.tv_usec -= 200000;
+	if (doTime && tv.tv_sec > 1) {
+		tv.tv_usec -= 500000;
 		if (tv.tv_usec < 0) {
 			tv.tv_usec += 1000000;
 			tv.tv_sec--;
 		}
-		*/
 
 		// convert the struct timeval time-until-zookeeper-wants-another-check
 		// to a Tcl_Time
@@ -907,6 +876,43 @@ fprintf(stderr, "zootcl_EventProc invoked\n");
 	ckfree ((char *)evalObjv);
 	return 1;
 }
+
+/*
+ *--------------------------------------------------------------
+ *
+ * zootcl_zookeeperObjectDelete -- command deletion callback routine.
+ *
+ * Results:
+ *      ...destroys the zookeeper object.
+ *      ...frees memory.
+ *
+ * Side effects:
+ *      None.
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_zookeeperObjectDelete (ClientData clientData)
+{
+    zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
+
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+
+	if (zo->channel != NULL) {
+		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
+		Tcl_DetachChannel (zo->interp, zo->channel);
+	}
+	Tcl_DeleteEventSource (zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData) zo);
+
+	// we are freeing memory in a sec, clear the magic number
+	// so attempt to reuse a freed object will be an assertion
+	// failure
+    zo->zookeeper_object_magic = -1;
+
+	zookeeper_close (zo->zh);
+    ckfree((char *)clientData);
+}
+
 
 /*
  *----------------------------------------------------------------------
@@ -1862,7 +1868,6 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 			zo->initCallbackObj = callbackObj;
 
 			zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
-			// zhandle_t *zh = zookeeper_init (hosts, NULL, timeout, NULL, zo, 0);
 
 			if (zh == NULL) {
 				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
