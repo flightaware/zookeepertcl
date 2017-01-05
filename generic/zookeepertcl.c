@@ -516,7 +516,7 @@ void zootcl_init_callback (zhandle_t *zh, int type, int state, const char *path,
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
 	evPtr->event.proc = zootcl_EventProc;
 
-	evPtr->callbackType = WATCHER_CALLBACK;
+	evPtr->callbackType = INTERNAL_INIT_CALLBACK;
     evPtr->zo = zo;
 	evPtr->commandObj = zo->initCallbackObj;
 
