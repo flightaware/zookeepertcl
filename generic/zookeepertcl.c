@@ -567,7 +567,9 @@ zootcl_socket_ready (ClientData clientData, int mask)
 
 	int status = zookeeper_process (zo->zh, events);
 	if ((status != ZOK) && (status != ZNOTHING)) {
-		// NB handle ZCONNECTONLOSS here, callout
+		if (status == ZCONNECTIONLOSS) {
+			// zootcl_init_callback (zo->zh, ZOO_SESSION_EVENT, 0, NULL, NULL);
+		}
 		fprintf(stderr, "zookeeper_process abnormal status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 	}
 fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
@@ -617,11 +619,13 @@ fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, wri
 	}
 
 	if (doTime && tv.tv_sec > 1) {
+		/*
 		tv.tv_usec -= 500000;
 		if (tv.tv_usec < 0) {
 			tv.tv_usec += 1000000;
 			tv.tv_sec--;
 		}
+		*/
 
 		// convert the struct timeval time-until-zookeeper-wants-another-check
 		// to a Tcl_Time
@@ -774,8 +778,10 @@ fprintf(stderr, "zootcl_EventProc invoked\n");
 	switch(evPtr->callbackType) {
 		case INTERNAL_INIT_CALLBACK:
 		case WATCHER_CALLBACK:
-			listObjv[element++] = Tcl_NewStringObj ("path", -1);
-			listObjv[element++] = Tcl_NewStringObj (evPtr->watcher.path, -1);
+			if ((evPtr->watcher.path != NULL) && (*evPtr->watcher.path != '\0')) {
+				listObjv[element++] = Tcl_NewStringObj ("path", -1);
+				listObjv[element++] = Tcl_NewStringObj (evPtr->watcher.path, -1);
+			}
 
 			listObjv[element++] = Tcl_NewStringObj ("type", -1);
 			listObjv[element++] = Tcl_NewStringObj (zootcl_type_to_string (evPtr->watcher.type), -1);
