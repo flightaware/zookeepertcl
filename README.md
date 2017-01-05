@@ -20,7 +20,7 @@ Open source under the permissive Berkeley copyright; see file [LICENSE](LICENSE)
 
 Requirements
 ---
-Requires the Apache Zookeeper C/C++ library *libzookeeper* be installed.
+Requires the Apache Zookeeper C/C++ library [libzookeeper](https://zookeeper.apache.org/doc/trunk/zookeeperProgrammers.html) be installed.
 
 Building
 ---
