@@ -18,7 +18,7 @@ dnl	to configure the system for the local environment.
 # so you can encode the package version directly into the source files.
 #-----------------------------------------------------------------------
 
-AC_INIT([zookeeper], [0.0.0])
+AC_INIT([zookeepertcl], [0.0.0])
 
 #--------------------------------------------------------------------
 # Call TEA_INIT as the first TEA_ macro to set up initial vars.
@@ -73,7 +73,12 @@ TEA_SETUP_COMPILER
 TEA_ADD_SOURCES([zookeepertcl.c tclzookeepertcl.c])
 TEA_ADD_HEADERS([])
 TEA_ADD_INCLUDES([])
-TEA_ADD_LIBS([])
+AC_CHECK_HEADERS([zookeeper/zookeeper.h])
+if test -z "TCL_THREAD"; then
+    TEA_ADD_LIBS([-lzookeeper_st])
+else
+    TEA_ADD_LIBS([-lzookeeper_mt])
+fi
 TEA_ADD_CFLAGS([])
 TEA_ADD_STUB_SOURCES([])
 TEA_ADD_TCL_SOURCES([zookeeper.tcl])
