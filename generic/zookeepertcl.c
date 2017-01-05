@@ -583,6 +583,10 @@ zootcl_socket_ready (ClientData clientData, int mask)
 	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
+	if (mask & TCL_EXCEPTION) {
+		fprintf (stderr, "SOCKET EXCEPTION\n");
+	}
+
 	if (mask & TCL_READABLE) {
 		events |= ZOOKEEPER_READ;
 	}
@@ -596,7 +600,97 @@ zootcl_socket_ready (ClientData clientData, int mask)
 		fprintf(stderr, "zookeeper_process abnormal status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 	}
 fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
+}
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_EventCommonProc --
+ *    This routine is a required argument to Tcl_CreateEventSource
+ *
+ *    This is a function we pass to Tcl_CreateEventSource that is
+ *    invoked to see if any events have occurred and to queue them.
+ *
+ *    We get our events from a channel handler so this function is empty.
+ *
+ * Results:
+ *
+ *----------------------------------------------------------------------
+ */
+void
+zootcl_EventCommonProc (ClientData clientData, int flags, int doTime) {
+    zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
+	int fd;
+	int interest;
+	struct timeval tv;
+
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+
+	ZOOAPI zhandle_t *zh = zo->zh;
+
+	// find out what zookeeper is interested in
+	int status = zookeeper_interest (zh, &fd, &interest, &tv);
+fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+
+	if ((zo->currentFD != -1) && (fd != zo->currentFD)) {
+fprintf(stderr,"fd changed from %d to %d!\n", zo->currentFD, fd);
+		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
+		Tcl_DetachChannel (zo->interp, zo->channel);
+		zo->channel = NULL;
+		zo->currentFD = -1;
+	}
+
+	if ((status != ZOK) && (status != ZNOTHING)) {
+fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+		return;
+	}
+
+	if (doTime) {
+		/*
+		tv.tv_usec -= 200000;
+		if (tv.tv_usec < 0) {
+			tv.tv_usec += 1000000;
+			tv.tv_sec--;
+		}
+		*/
+
+		// convert the struct timeval time-until-zookeeper-wants-another-check
+		// to a Tcl_Time
+		Tcl_Time time = {tv.tv_sec, tv.tv_usec};
+		// Tcl_Time time = {1, 0};
+		Tcl_SetMaxBlockTime (&time);
+	}
+
+	// if fd is -1 there is no connection
+	if (fd == -1) return;
+
+	// create Tcl read and write intereest flags based on
+	// the zookeeper-based ones
+	int readOrWrite = 0;
+
+	if (interest & ZOOKEEPER_READ) {
+		readOrWrite |= TCL_READABLE;
+	}
+
+	if (interest & ZOOKEEPER_WRITE) {
+		readOrWrite |= TCL_WRITABLE;
+	}
+
+	// if readOrWrite is still 0 then zookeeper has no pending interest,
+	// we're done
+	if (readOrWrite == 0 && zo->channel != NULL) {
+		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
+		return;
+	}
+
+	// if we haven't done it already, construct a Tcl channel from
+	// zookeeper's socket
+	if (zo->channel == NULL) {
+		zo->channel = Tcl_MakeFileChannel (((void *)(intptr_t) fd), (TCL_READABLE|TCL_WRITABLE));
+		zo->currentFD = fd;
+		// assert (Tcl_SetChannelOption (NULL, zo->channel, "-blocking", "0") == TCL_OK);
+	}
+	Tcl_CreateChannelHandler (zo->channel, (readOrWrite | TCL_EXCEPTION), zootcl_socket_ready, (ClientData)zo);
 }
 
 /*
@@ -616,6 +710,7 @@ fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl
  */
 void
 zootcl_EventCheckProc (ClientData clientData, int flags) {
+	zootcl_EventCommonProc (clientData, flags, 0);
 }
 
 /*
@@ -653,76 +748,7 @@ zootcl_EventCheckProc (ClientData clientData, int flags) {
  */
 void
 zootcl_EventSetupProc (ClientData clientData, int flags) {
-    zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
-	int fd;
-	int interest;
-	struct timeval tv;
-
-    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
-
-	ZOOAPI zhandle_t *zh = zo->zh;
-
-	// find out what zookeeper is interested in
-	int status = zookeeper_interest (zh, &fd, &interest, &tv);
-fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
-
-	if ((zo->currentFD != -1) && (fd != zo->currentFD)) {
-fprintf(stderr,"fd changed from %d to %d!\n", zo->currentFD, fd);
-		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
-		Tcl_DetachChannel (zo->interp, zo->channel);
-		zo->channel = NULL;
-		zo->currentFD = -1;
-	}
-
-	if ((status != ZOK) && (status != ZNOTHING)) {
-fprintf(stderr, "zootcl_EventSetupProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
-		return;
-	}
-
-	// if fd is -1 there is no connection
-	if (fd == -1) return;
-
-	/*
-	tv.tv_usec -= 200000;
-	if (tv.tv_usec < 0) {
-		tv.tv_usec += 1000000;
-		tv.tv_sec--;
-	}
-	*/
-
-	// convert the struct timeval time-until-zookeeper-wants-another-check
-	// to a Tcl_Time
-	Tcl_Time time = {tv.tv_sec, tv.tv_usec};
-	// Tcl_Time time = {1, 0};
-	Tcl_SetMaxBlockTime (&time);
-
-	// create Tcl read and write intereest flags based on
-	// the zookeeper-based ones
-	int readOrWrite = 0;
-
-	if (interest & ZOOKEEPER_READ) {
-		readOrWrite |= TCL_READABLE;
-	}
-
-	if (interest & ZOOKEEPER_WRITE) {
-		readOrWrite |= TCL_WRITABLE;
-	}
-
-	// if readOrWrite is still 0 then zookeeper has no pending interest,
-	// we're done
-	if (readOrWrite == 0) {
-		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
-		return;
-	}
-
-	// if we haven't done it already, construct a Tcl channel from
-	// zookeeper's socket
-	if (zo->channel == NULL) {
-		zo->channel = Tcl_MakeFileChannel (((void *)(intptr_t) fd), (TCL_READABLE|TCL_WRITABLE));
-		zo->currentFD = fd;
-		// assert (Tcl_SetChannelOption (NULL, zo->channel, "-blocking", "0") == TCL_OK);
-	}
-	Tcl_CreateChannelHandler (zo->channel, readOrWrite, zootcl_socket_ready, (ClientData)zo);
+	zootcl_EventCommonProc (clientData, flags, 1);
 }
 
 /*
@@ -1846,7 +1872,8 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 			zo->zh = zh;
 			zoo_set_context (zo->zh, (void *)zo);
 
-			Tcl_CreateEventSource (zootcl_EventSetupProc, zootcl_EventSetupProc, (ClientData) zo);
+			// Tcl_CreateEventSource (zootcl_EventSetupProc, zootcl_EventSetupProc, (ClientData) zo);
+			Tcl_CreateEventSource (zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData) zo);
 
 			// if cmdName is #auto, generate a unique name for the object
 			int autoGeneratedName = 0;
