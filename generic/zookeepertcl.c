@@ -777,6 +777,7 @@ fprintf(stderr, "zootcl_EventProc invoked\n");
 
 	switch(evPtr->callbackType) {
 		case INTERNAL_INIT_CALLBACK:
+			break;
 		case WATCHER_CALLBACK:
 			if ((evPtr->watcher.path != NULL) && (*evPtr->watcher.path != '\0')) {
 				listObjv[element++] = Tcl_NewStringObj ("path", -1);
