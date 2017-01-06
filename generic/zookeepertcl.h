@@ -54,7 +54,7 @@ typedef struct zootcl_callbackEvent
 		struct {
 			int type;
 			int state;
-			const char *path;
+			char *path;
 		} watcher;
 		struct {
 			int rc;

@@ -476,7 +476,9 @@ void zootcl_watcher (zhandle_t *zh, int type, int state, const char *path, void*
 
 	evPtr->watcher.type = type;
 	evPtr->watcher.state = state;
-	evPtr->watcher.path = path;
+
+	evPtr->watcher.path = ckalloc (strlen (path) + 1);
+	strcpy (evPtr->watcher.path, path);
 
 	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 	Tcl_ThreadAlert (evPtr->zo->threadId);
@@ -522,7 +524,9 @@ void zootcl_init_callback (zhandle_t *zh, int type, int state, const char *path,
 
 	evPtr->watcher.type = type;
 	evPtr->watcher.state = state;
-	evPtr->watcher.path = path;
+
+	evPtr->watcher.path = ckalloc (strlen (path) + 1);
+	strcpy (evPtr->watcher.path, path);
 
 	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 	Tcl_ThreadAlert (evPtr->zo->threadId);
@@ -777,11 +781,15 @@ fprintf(stderr, "zootcl_EventProc invoked\n");
 
 	switch(evPtr->callbackType) {
 		case INTERNAL_INIT_CALLBACK:
-			break;
+			// break;
 		case WATCHER_CALLBACK:
-			if ((evPtr->watcher.path != NULL) && (*evPtr->watcher.path != '\0')) {
-				listObjv[element++] = Tcl_NewStringObj ("path", -1);
-				listObjv[element++] = Tcl_NewStringObj (evPtr->watcher.path, -1);
+			if (evPtr->watcher.path != NULL) {
+					if (*evPtr->watcher.path != '\0') {
+						listObjv[element++] = Tcl_NewStringObj ("path", -1);
+						listObjv[element++] = Tcl_NewStringObj (evPtr->watcher.path, -1);
+					}
+					ckfree (evPtr->watcher.path);
+					evPtr->watcher.path = NULL;
 			}
 
 			listObjv[element++] = Tcl_NewStringObj ("type", -1);
