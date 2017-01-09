@@ -596,6 +596,7 @@ fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl
  */
 void
 zootcl_EventCommonProc (ClientData clientData, int flags, int doTime) {
+#ifndef TCL_THREADS
     zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
 	int fd;
 	int interest;
@@ -668,6 +669,7 @@ fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, wri
 		// assert (Tcl_SetChannelOption (NULL, zo->channel, "-blocking", "0") == TCL_OK);
 	}
 	Tcl_CreateChannelHandler (zo->channel, (readOrWrite | TCL_EXCEPTION), zootcl_socket_ready, (ClientData)zo);
+#endif
 }
 
 /*
