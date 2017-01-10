@@ -124,12 +124,14 @@ If **-async** is specified, the request is made asynchronously and *callback* is
 Neither -watch, -stat or -version can be specified when -async is used.
 
 ```tcl
-zk children $path ?-async callback?
+zk children $path ?-async callback? ?-watch code?
 ```
 
 Return a Tcl list of the names of the child znodes of the given path.  If **-async** is specified, *callback* is invoked once the data arrives, with a list of key-value pairs such as `zk ::zk status ZOK data bark version 0`.  In this case, the zookeeper object is **::zk**, the status is **ZOK**, the data is **bark** and the version is **0**.
 
-(The C API supports adding a watch with this call but we currently do not.)
+If the **-watch** option is specified, *code* is executed if a child node is added or removed.
+
+Remember, watches only fire one time, so they must be set up again if you want them to fire again on another change.
 
 ```tcl
 zk set $path $data $version ?-async callback?
@@ -180,6 +182,12 @@ State will be one of **closed**, **connecting**, **associating**, **connected**,
 
 Type will be one of **created**, **deleted**, **changed**, **child**, **session**, **not_watching** or **unknown**.
 
+For example, for a zookeeper object named *zk* that has a watch up on **/test** and that znode is changed, the argument to the callback will be something like
+
+```
+zk ::zk path /test type changed state connected
+```
+
 Stat Structure
 ---
 When requesting status using **-stat**, the specified array will be filled with the following elements:
@@ -204,6 +212,9 @@ Links
 
 * [Tcl_CreateEventSource, Tcl_SetMaxBlockTime, Tcl_ThreadQueueEvent](https://www.tcl.tk/man/tcl/TclLib/Notifier.htm)
 * [Tcl_OpenFileChannel, Tcl_DetachChannel](https://www.tcl.tk/man/tcl/TclLib/OpenFileChnl.htm)
+* [Zookeeper wiki](https://cwiki.apache.org/confluence/display/ZOOKEEPER/Index)
+* [Github mirror of zookeeper](https://github.com/apache/zookeeper)
+* [zookeeper programmer's guide](https://zookeeper.apache.org/doc/trunk/zookeeperProgrammers.html)
 
 FlightAware
 ---

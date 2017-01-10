@@ -1309,13 +1309,16 @@ int
 zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
 	Tcl_Obj *callbackObj = NULL;
+	Tcl_Obj *watcherCallbackObj = NULL;
 
 	static CONST char *subOptions[] = {
+		"-watch",
 		"-async",
 		NULL
 	};
 
 	enum subOptions {
+		SUBOPT_WATCH,
 		SUBOPT_ASYNC
 	};
 
@@ -1324,11 +1327,12 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 	int i;
 	int suboptIndex = 0;
 	int status;
+	watcher_fn wfn = NULL;
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
-	if ((objc < 3) || (objc > 5)) {
-		Tcl_WrongNumArgs (interp, 2, objv, "path ?-async callback?");
+	if ((objc < 3) || (objc > 7)) {
+		Tcl_WrongNumArgs (interp, 2, objv, "path ?-async callback? ?-watch code?");
 		return TCL_ERROR;
 	}
 
@@ -1341,6 +1345,17 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		}
 
 		switch ((enum subOptions) suboptIndex) {
+			case SUBOPT_WATCH:
+			{
+				if (i + 1 >= objc) {
+					Tcl_WrongNumArgs (interp, 2, objv, "path ... -watch code");
+					return TCL_ERROR;
+				}
+				watcherCallbackObj = objv[++i];
+				Tcl_IncrRefCount (watcherCallbackObj);
+				break;
+			}
+
 			case SUBOPT_ASYNC:
 			{
 				if (i + 1 >= objc) {
@@ -1354,8 +1369,13 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		}
 	}
 
+	if (watcherCallbackObj != NULL) {
+		wfn = zootcl_watcher;
+	}
+
+
 	if (callbackObj == NULL) {
-		status = zoo_wget_children (zh, path, NULL, NULL, &strings);
+		status = zoo_wget_children (zh, path, wfn, watcherCallbackObj, &strings);
 
 		if (status != ZOK) {
 			return zootcl_set_tcl_return_code (interp, status);
@@ -1370,7 +1390,7 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
-		status = zoo_awget_children (zh, path, NULL, NULL, zootcl_strings_completion_callback, ztc);
+		status = zoo_awget_children (zh, path, wfn, watcherCallbackObj, zootcl_strings_completion_callback, ztc);
 	}
 
 	return zootcl_set_tcl_return_code (interp, status);
