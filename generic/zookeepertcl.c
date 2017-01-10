@@ -576,7 +576,7 @@ zootcl_socket_ready (ClientData clientData, int mask)
 		}
 		fprintf(stderr, "zookeeper_process abnormal status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 	}
-fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
+// fprintf(stderr,"zookeeper_process status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
 }
 
 /*
@@ -608,10 +608,10 @@ zootcl_EventCommonProc (ClientData clientData, int flags, int doTime) {
 
 	// find out what zookeeper is interested in
 	int status = zookeeper_interest (zh, &fd, &interest, &tv);
-fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+// fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 
 	if ((zo->currentFD != -1) && (fd != zo->currentFD)) {
-fprintf(stderr,"fd changed from %d to %d!\n", zo->currentFD, fd);
+// fprintf(stderr,"fd changed from %d to %d!\n", zo->currentFD, fd);
 		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
 		Tcl_DetachChannel (zo->interp, zo->channel);
 		zo->channel = NULL;
@@ -619,7 +619,7 @@ fprintf(stderr,"fd changed from %d to %d!\n", zo->currentFD, fd);
 	}
 
 	if ((status != ZOK) && (status != ZNOTHING)) {
-fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
+// fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 		return;
 	}
 
@@ -761,7 +761,7 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
-fprintf(stderr, "zootcl_EventProc invoked\n");
+	// fprintf(stderr, "zootcl_EventProc invoked\n");
 
 	// crack the command object.  it may be a list of multiple elements
 	// and we want that to work, like it could be an object and a method or
