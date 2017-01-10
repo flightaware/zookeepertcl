@@ -59,6 +59,10 @@ namespace eval ::zookeeper  {
 	}
 
 	#
+	# zsync - sync a filesystem tree to a znode tree
+	#
+	# zpath is prepended to the destination path
+	#
 	proc zsync {zk path zpath {pattern *}} {
 		mkpath $zk $zpath
 		set regexp "^${path}(.*)"

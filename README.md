@@ -202,6 +202,42 @@ When requesting status using **-stat**, the specified array will be filled with 
 * dataLength - the length of the data field of this znode.
 * numChildren - the number of children of this znode.
 
+zookeeper library functions
+---
+
+Also included when you do a `package require zookeeper` are some handy Tcl help functions, created in the zookeeper namespace.
+
+```tcl
+::zookeeper::rmrf $zk $path
+```
+
+Recursively delete a path and all of its children.  Rather dangerous.
+
+```tcl
+zookeeper::mkpath $zk $path
+```
+
+Make all the znodes in the specified path that don't already exist.
+
+```tcl
+zookeeper::copy_file $zk $file $zpath
+```
+
+Copy the specified file to the specified path on zookeeper.
+
+```tcl
+zookeeper::copy_data $zk $data $zpath
+```
+
+Copy the specified data to the specified path on zookeeper.
+
+```tcl
+zookeeper::zsync $zk $path $zpath ?pattern?
+```
+
+Sync a filesystem tree to a znode tree.  zpath is prepended to the destination path.  Compares existing files and znode data and if they are present and identical, does not update the znode.  This makes znode versions increment only when changes are present in corresponding files when zsync is run.
+
+
 Errata
 ---
 
