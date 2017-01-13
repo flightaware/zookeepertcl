@@ -1835,11 +1835,17 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
 		zsc->zo = zo;
 		zsc->syncDone = 0;
+
 		status = zoo_acreate (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, zootcl_sync_string_completion_callback, zsc);
+		if (status != ZOK) {
+			ckfree (zsc);
+			return zootcl_set_tcl_return_code (interp, status);
+		}
 		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
 			ckfree (zsc);
 			return TCL_ERROR;
 		}
+		status = zsc->rc;
 		if (status == ZOK) {
 			Tcl_SetObjResult (interp, zsc->dataObj);
 		}
