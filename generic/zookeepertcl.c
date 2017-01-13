@@ -455,6 +455,31 @@ zootcl_stat_completion_callback (int rc, const struct Stat *stat, const void *co
 /*
  *--------------------------------------------------------------
  *
+ * zootcl_sync_stat_completion_callback -- string completion callback function
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_sync_stat_completion_callback (int rc, const struct Stat *stat, const void *context)
+{
+	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
+	zootcl_callbackEvent *evPtr;
+	zsc->rc = rc;
+	if (stat != NULL) {
+		zsc->stat = *stat;
+	}
+	zsc->syncDone = 1;
+printf("zootcl_sync_stat_completion_callback: done\n");
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
+	evPtr->callbackType = NULL_CALLBACK;
+	Tcl_ThreadQueueEvent (zsc->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+	Tcl_ThreadAlert (zsc->zo->threadId);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
  * zootcl_watcher -- watcher callback function
  *
  * we can't call Tcl directly here because this has occurred
@@ -749,6 +774,10 @@ zootcl_EventSetupProc (ClientData clientData, int flags) {
 int
 zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	zootcl_callbackEvent *evPtr = (zootcl_callbackEvent *)tevPtr;
+	if (evPtr->callbackType == NULL_CALLBACK) {
+		return 1;
+	}
+
 	zootcl_objectClientData *zo = evPtr->zo;
 	Tcl_Interp *interp = zo->interp;
 	int tclReturnCode;
@@ -782,6 +811,10 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 
 
 	switch(evPtr->callbackType) {
+		case NULL_CALLBACK:
+			// should never reach here
+			assert(0 == 1);
+
 		case INTERNAL_INIT_CALLBACK:
 			// break;
 		case WATCHER_CALLBACK:
@@ -931,6 +964,59 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 
 	zookeeper_close (zo->zh);
     ckfree((char *)clientData);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
+ * zootcl_wait -- routine to make sync-like zookeeper functions
+ *   wait while keeping the event loop alive.
+ *
+ * this code was derived from Tcl_VwaitObjCmd in the Tcl core
+ *
+ *--------------------------------------------------------------
+ */
+int
+zootcl_wait (zootcl_objectClientData *zo, zootcl_syncCallbackContext *zsc)
+{
+    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+	Tcl_Interp *interp = zo->interp;
+	int foundEvent = 1;
+
+    while (!zsc->syncDone && foundEvent) {
+printf("zootcl_wait: doing an event, stat %d\n", zsc->syncDone);
+		foundEvent = Tcl_DoOneEvent(TCL_ALL_EVENTS);
+printf("zootcl_wait: back from event, stat %d\n", zsc->syncDone);
+
+		if (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {
+			break;
+		}
+
+		if (Tcl_LimitExceeded(interp)) {
+			Tcl_ResetResult(interp);
+			Tcl_SetObjResult(interp, Tcl_NewStringObj("limit exceeded", -1));
+			break;
+		}
+    }
+
+	if (!foundEvent) {
+		Tcl_ResetResult(interp);
+		Tcl_SetObjResult(interp, Tcl_NewStringObj("can't wait for zookeeper event: would wait forever", -1));
+		Tcl_SetErrorCode(interp, "TCL", "EVENT", "NO_SOURCES", NULL);
+		return TCL_ERROR;
+	}
+
+    if (!zsc->syncDone) {
+		return TCL_ERROR;
+    }
+
+    /*
+     * Clear out the interpreter's result, since it may have been set by event
+     * handlers.
+     */
+
+    Tcl_ResetResult(interp);
+    return TCL_OK;
 }
 
 /*
@@ -1471,13 +1557,21 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
 	if (callbackObj == NULL) {
 		// synchronous set
-		status = zoo_set (zh, path, buffer, bufferLen, version);
+		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
+		zsc->zo = zo;
+		zsc->syncDone = 0;
+		status = zoo_aset (zh, path, buffer, bufferLen, version, zootcl_sync_stat_completion_callback, zsc);
+		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
+			return TCL_ERROR;
+		}
+		int rc = zsc->rc;
+		ckfree (zsc);
+		return zootcl_set_tcl_return_code (interp, rc);
 	} else {
 		// asynchronous set
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
-		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
-
+		ztc->callbackObj = callbackObj;
 		status = zoo_aset (zh, path, buffer, bufferLen, version, zootcl_stat_completion_callback, ztc);
 	}
 	return zootcl_set_tcl_return_code (interp, status);
@@ -1998,6 +2092,5 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 }
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
-
 
 

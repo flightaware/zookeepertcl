@@ -34,13 +34,21 @@ typedef struct zootcl_objectClientData
 	Tcl_Obj *initCallbackObj; // handle callbacks from zookeeper_init callback function
 } zootcl_objectClientData;
 
-enum zootcl_CallbackType {INTERNAL_INIT_CALLBACK, WATCHER_CALLBACK, DATA_CALLBACK, STRING_CALLBACK, VOID_CALLBACK, STAT_CALLBACK};
+enum zootcl_CallbackType {NULL_CALLBACK, INTERNAL_INIT_CALLBACK, WATCHER_CALLBACK, DATA_CALLBACK, STRING_CALLBACK, VOID_CALLBACK, STAT_CALLBACK};
 
 typedef struct zootcl_callbackContext
 {
 	zootcl_objectClientData *zo;
 	Tcl_Obj *callbackObj;
 } zootcl_callbackContext;
+
+typedef struct zootcl_syncCallbackContext
+{
+	zootcl_objectClientData *zo;
+	int rc;
+	struct Stat stat;
+	int syncDone;
+} zootcl_syncCallbackContext;
 
 // this is the data structure that zookeepertcl queues to tcl
 // to move an event from zookeeper into tcl
