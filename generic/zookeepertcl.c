@@ -1480,11 +1480,16 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 		zsc->zo = zo;
 		zsc->syncDone = 0;
 		status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zootcl_sync_data_completion_callback, zsc);
+		if (status != ZOK) {
+			ckfree (zsc);
+			return zootcl_set_tcl_return_code (interp, status);
+		}
 		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
+			ckfree (zsc);
 			return TCL_ERROR;
 		}
-		int rc = zsc->rc;
-		if ((rc == ZNONODE) && (dataVarObj != NULL)) {
+		status = zsc->rc;
+		if ((status == ZNONODE) && (dataVarObj != NULL)) {
 			// node doesn't exist and they specified -data,
 			// unset data var and version var if defined and
 			// return 0 indicating no node
@@ -1493,10 +1498,12 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
 			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
+			ckfree (zsc);
 			return TCL_OK;
 		}
 
-		if (rc != ZOK) {
+		if (status != ZOK) {
+			ckfree (zsc);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
@@ -1506,17 +1513,20 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			}
 		} else {
 			if (Tcl_SetVar2Ex (interp, Tcl_GetString (dataVarObj), NULL, zsc->dataObj, TCL_LEAVE_ERR_MSG) == NULL) {
+				ckfree (zsc);
 				return TCL_ERROR;
 			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
 		}
 
 		if (zootcl_stat_to_array (interp, statArray, &zsc->stat) == TCL_ERROR) {
+			ckfree (zsc);
 			return TCL_ERROR;
 		}
 
 		if (versionVarObj != NULL) {
 			if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (zsc->stat.version), TCL_LEAVE_ERR_MSG) == NULL) {
+				ckfree (zsc);
 				return TCL_ERROR;
 			}
 		}
