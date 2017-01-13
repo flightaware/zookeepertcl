@@ -578,6 +578,21 @@ zootcl_sync_strings_completion_callback (int rc, const struct String_vector *str
 	zootcl_queue_null_event (zsc);
 }
 
+/*
+ *--------------------------------------------------------------
+ *
+ * zootcl_sync_void_completion_callback -- void completion callback function
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_sync_void_completion_callback (int rc, const void *context)
+{
+	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
+	zsc->rc = rc;
+	zsc->syncDone = 1;
+	zootcl_queue_null_event (zsc);
+}
 
 /*
  *--------------------------------------------------------------
@@ -1090,9 +1105,7 @@ zootcl_wait (zootcl_objectClientData *zo, zootcl_syncCallbackContext *zsc)
 	int foundEvent = 1;
 
     while (!zsc->syncDone && foundEvent) {
-printf("zootcl_wait: doing an event, stat %d\n", zsc->syncDone);
 		foundEvent = Tcl_DoOneEvent(TCL_ALL_EVENTS);
-printf("zootcl_wait: back from event, stat %d\n", zsc->syncDone);
 
 		if (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {
 			break;
@@ -1908,7 +1921,25 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	}
 
 	if (callbackObj == NULL) {
-		status = zoo_delete (zh, path, version);
+		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
+		zsc->zo = zo;
+		zsc->syncDone = 0;
+		status = zoo_adelete (zh, path, version, zootcl_sync_void_completion_callback, zsc);
+		if (status != ZOK) {
+			ckfree (zsc);
+			return zootcl_set_tcl_return_code (interp, status);
+		}
+
+		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
+			ckfree (zsc);
+			return TCL_ERROR;
+		}
+		status = zsc->rc;
+		if (status != ZOK) {
+			ckfree (zsc);
+			return zootcl_set_tcl_return_code (interp, status);
+		}
+		ckfree (zsc);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
