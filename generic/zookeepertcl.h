@@ -46,7 +46,6 @@ typedef struct zootcl_syncCallbackContext
 {
 	zootcl_objectClientData *zo;
 	int rc;
-	int haveStat;
 	struct Stat stat;
 	int syncDone;
 	Tcl_Obj *dataObj;

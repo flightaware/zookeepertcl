@@ -487,10 +487,7 @@ zootcl_sync_stat_completion_callback (int rc, const struct Stat *stat, const voi
 {
 	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
 	zsc->rc = rc;
-	if (stat == NULL) {
-		zsc->haveStat = 0;
-	} else {
-		zsc->haveStat = 1;
+	if (stat != NULL) {
 		zsc->stat = *stat;
 	}
 	zsc->syncDone = 1;
@@ -522,10 +519,7 @@ zootcl_sync_data_completion_callback (int rc, const char *value, int valueLen, c
 	}
 
 	// structure copy status structure only if it exists
-	if (stat == NULL) {
-		zsc->haveStat = 0;
-	} else {
-		zsc->haveStat = 1;
+	if (stat != NULL) {
 		zsc->stat = *stat;
 	}
 
@@ -1447,7 +1441,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
 		}
 
-		if (zsc->haveStat && zootcl_stat_to_array (interp, statArray, &zsc->stat) == TCL_ERROR) {
+		if (zootcl_stat_to_array (interp, statArray, &zsc->stat) == TCL_ERROR) {
 			return TCL_ERROR;
 		}
 
