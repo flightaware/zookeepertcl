@@ -465,7 +465,10 @@ zootcl_sync_stat_completion_callback (int rc, const struct Stat *stat, const voi
 	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
 	zootcl_callbackEvent *evPtr;
 	zsc->rc = rc;
-	if (stat != NULL) {
+	if (stat == NULL) {
+		zsc->haveStat = 0;
+	} else {
+		zsc->haveStat = 1;
 		zsc->stat = *stat;
 	}
 	zsc->syncDone = 1;
@@ -473,6 +476,46 @@ printf("zootcl_sync_stat_completion_callback: done\n");
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
 	evPtr->event.proc = zootcl_EventProc;
 	evPtr->callbackType = NULL_CALLBACK;
+	Tcl_ThreadQueueEvent (zsc->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+	Tcl_ThreadAlert (zsc->zo->threadId);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
+ * zootcl_sync_data_completion_callback -- data completion callback function
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_sync_data_completion_callback (int rc, const char *value, int valueLen, const struct Stat *stat, const void *context)
+{
+	zootcl_callbackEvent *evPtr;
+	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
+
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
+	evPtr->callbackType = NULL_CALLBACK;
+
+	zsc->rc = rc;
+	zsc->syncDone = 1;
+
+	// if value is NULL then there is no value associated with this znode
+	// we set to NULL and the other end (the event handler) will discriminate
+	if (value == NULL) {
+		zsc->dataObj = NULL;
+	} else {
+		zsc->dataObj = Tcl_NewStringObj (value, valueLen);
+	}
+
+	// structure copy status structure only if it exists
+	if (stat == NULL) {
+		zsc->haveStat = 0;
+	} else {
+		zsc->haveStat = 1;
+		zsc->stat = *stat;
+	}
+
 	Tcl_ThreadQueueEvent (zsc->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 	Tcl_ThreadAlert (zsc->zo->threadId);
 }
@@ -1217,11 +1260,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 	};
 
 	const char *path;
-	char buffer[1024*1024];
-	int bufferLen = sizeof(buffer);
 	watcher_fn wfn = NULL;
-	struct Stat *stat = NULL;
-	struct Stat statBuf;
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
@@ -1276,7 +1315,6 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 					return TCL_ERROR;
 				}
 				statArray = Tcl_GetString (objv[++i]);
-				stat = &statBuf;
 				break;
 			}
 
@@ -1297,7 +1335,6 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 					return TCL_ERROR;
 				}
 				versionVarObj = objv[++i];
-				stat = &statBuf;
 				break;
 			}
 		}
@@ -1328,8 +1365,16 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
 	// if asyncCallbackObj is null, do the synchronous version
 	if (asyncCallbackObj == NULL) {
-		status = zoo_wget (zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);
-		if ((status == ZNONODE) && (dataVarObj != NULL)) {
+		// synchronous get
+		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
+		zsc->zo = zo;
+		zsc->syncDone = 0;
+		status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zootcl_sync_data_completion_callback, zsc);
+		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
+			return TCL_ERROR;
+		}
+		int rc = zsc->rc;
+		if ((rc == ZNONODE) && (dataVarObj != NULL)) {
 			// node doesn't exist and they specified -data,
 			// unset data var and version var if defined and
 			// return 0 indicating no node
@@ -1341,30 +1386,31 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			return TCL_OK;
 		}
 
-		if (status != ZOK) {
+		if (rc != ZOK) {
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
-		if (bufferLen != -1) {
-			if (dataVarObj == NULL) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (buffer, bufferLen));
-			} else {
-				if (Tcl_SetVar2Ex (interp, Tcl_GetString (dataVarObj), NULL, Tcl_NewStringObj (buffer, bufferLen), TCL_LEAVE_ERR_MSG) == NULL) {
-					return TCL_ERROR;
-				}
-				Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
+		if (dataVarObj == NULL) {
+			if (zsc->dataObj != NULL) {
+				Tcl_SetObjResult (interp, zsc->dataObj);
 			}
+		} else {
+			if (Tcl_SetVar2Ex (interp, Tcl_GetString (dataVarObj), NULL, zsc->dataObj, TCL_LEAVE_ERR_MSG) == NULL) {
+				return TCL_ERROR;
+			}
+			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
 		}
 
-		if (statArray != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+		if (zsc->haveStat && zootcl_stat_to_array (interp, statArray, &zsc->stat) == TCL_ERROR) {
 			return TCL_ERROR;
 		}
 
 		if (versionVarObj != NULL) {
-			if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (stat->version), TCL_LEAVE_ERR_MSG) == NULL) {
+			if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (zsc->stat.version), TCL_LEAVE_ERR_MSG) == NULL) {
 				return TCL_ERROR;
 			}
 		}
+		ckfree (zsc);
 	} else {
 		// do the asynchronous version
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
