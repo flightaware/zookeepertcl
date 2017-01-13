@@ -526,6 +526,30 @@ zootcl_sync_data_completion_callback (int rc, const char *value, int valueLen, c
 /*
  *--------------------------------------------------------------
  *
+ * zootcl_sync_string_completion_callback -- string completion callback function
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_sync_string_completion_callback (int rc, const char *value, const void *context)
+{
+	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
+	zsc->rc = rc;
+
+	// if value is NULL then there is no value associated with this znode
+	// we set to NULL and the other end (the event handler) will discriminate
+	if (value == NULL) {
+		zsc->dataObj = NULL;
+	} else {
+		zsc->dataObj = Tcl_NewStringObj (value, -1);
+	}
+	zsc->syncDone = 1;
+	zootcl_queue_null_event (zsc);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
  * zootcl_sync_strings_completion_callback -- multi-string completion callback function
  *
  *--------------------------------------------------------------
@@ -1792,15 +1816,21 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		}
 	}
 
-	char returnPathBuf[1024*1024];
-
 	int status;
 
 	if (callbackObj == NULL) {
-		status = zoo_create (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, returnPathBuf, sizeof(returnPathBuf));
-		if (status == ZOK) {
-			Tcl_SetObjResult (interp, Tcl_NewStringObj (returnPathBuf, -1));
+		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
+		zsc->zo = zo;
+		zsc->syncDone = 0;
+		status = zoo_acreate (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, zootcl_sync_string_completion_callback, zsc);
+		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
+			ckfree (zsc);
+			return TCL_ERROR;
 		}
+		if (status == ZOK) {
+			Tcl_SetObjResult (interp, zsc->dataObj);
+		}
+		ckfree (zsc);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
