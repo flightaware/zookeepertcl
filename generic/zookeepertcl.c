@@ -491,7 +491,6 @@ zootcl_sync_stat_completion_callback (int rc, const struct Stat *stat, const voi
 		zsc->stat = *stat;
 	}
 	zsc->syncDone = 1;
-printf("zootcl_sync_stat_completion_callback: done\n");
 	zootcl_queue_null_event (zsc);
 }
 
@@ -506,9 +505,7 @@ void
 zootcl_sync_data_completion_callback (int rc, const char *value, int valueLen, const struct Stat *stat, const void *context)
 {
 	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
-
 	zsc->rc = rc;
-	zsc->syncDone = 1;
 
 	// if value is NULL then there is no value associated with this znode
 	// we set to NULL and the other end (the event handler) will discriminate
@@ -522,9 +519,41 @@ zootcl_sync_data_completion_callback (int rc, const char *value, int valueLen, c
 	if (stat != NULL) {
 		zsc->stat = *stat;
 	}
-
+	zsc->syncDone = 1;
 	zootcl_queue_null_event (zsc);
 }
+
+/*
+ *--------------------------------------------------------------
+ *
+ * zootcl_sync_strings_completion_callback -- multi-string completion callback function
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_sync_strings_completion_callback (int rc, const struct String_vector *strings, const void *context)
+{
+	int i;
+	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
+	zsc->rc = rc;
+
+	// marshall the zookeeper strings into Tcl string objects
+	// and make a Tcl list object of them
+	int count = strings ? strings->count : 0;
+	Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
+
+	for (i = 0; i < count; i++) {
+		listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
+	}
+
+	Tcl_Obj *listObj = Tcl_NewListObj (count, listObjv);
+	ckfree (listObjv);
+
+	zsc->dataObj = listObj;
+	zsc->syncDone = 1;
+	zootcl_queue_null_event (zsc);
+}
+
 
 /*
  *--------------------------------------------------------------
@@ -1023,6 +1052,10 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
  *
  * this code was derived from Tcl_VwaitObjCmd in the Tcl core
  *
+ * it processes events until zsc->syncDone is true.
+ * zsc->syncDone is set by the callback routine such as
+ * zootcl_stat_sync_completion_callback.
+ *
  *--------------------------------------------------------------
  */
 int
@@ -1496,7 +1529,6 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 	};
 
 	char *path;
-	struct String_vector strings;
 	int i;
 	int suboptIndex = 0;
 	int status;
@@ -1548,17 +1580,25 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 
 
 	if (callbackObj == NULL) {
-		status = zoo_wget_children (zh, path, wfn, watcherCallbackObj, &strings);
+		// synchronous request
+		// invoke the special async handler for sync requests
+		// so the event loop will still be alive
+		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
+		zsc->zo = zo;
+		zsc->syncDone = 0;
+		status = zoo_awget_children (zh, path, wfn, watcherCallbackObj, zootcl_sync_strings_completion_callback, zsc);
+		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
+			ckfree (zsc);
+			return TCL_ERROR;
+		}
 
 		if (status != ZOK) {
+			ckfree (zsc);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
-		for (i = 0; i < strings.count; i++) {
-			if (Tcl_ListObjAppendElement (interp, Tcl_GetObjResult (interp), Tcl_NewStringObj (strings.data[i], -1)) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
-		}
+		Tcl_SetObjResult (interp, zsc->dataObj);
+		ckfree (zsc);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
