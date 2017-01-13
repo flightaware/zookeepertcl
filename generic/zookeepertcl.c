@@ -455,6 +455,29 @@ zootcl_stat_completion_callback (int rc, const struct Stat *stat, const void *co
 /*
  *--------------------------------------------------------------
  *
+ * zootcl_queue_null_event -- queue a "no op" event to wake
+ * up the event loop, but the event doesn't actually do anything.
+ *
+ * this helps our pseudo-synchronous functions to work.
+ *
+ *--------------------------------------------------------------
+ */
+void
+zootcl_queue_null_event (zootcl_syncCallbackContext *zsc)
+{
+	zootcl_callbackEvent *evPtr;
+
+	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	evPtr->event.proc = zootcl_EventProc;
+	evPtr->callbackType = NULL_CALLBACK;
+	Tcl_ThreadQueueEvent (zsc->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+	Tcl_ThreadAlert (zsc->zo->threadId);
+}
+
+
+/*
+ *--------------------------------------------------------------
+ *
  * zootcl_sync_stat_completion_callback -- string completion callback function
  *
  *--------------------------------------------------------------
@@ -463,7 +486,6 @@ void
 zootcl_sync_stat_completion_callback (int rc, const struct Stat *stat, const void *context)
 {
 	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
-	zootcl_callbackEvent *evPtr;
 	zsc->rc = rc;
 	if (stat == NULL) {
 		zsc->haveStat = 0;
@@ -473,11 +495,7 @@ zootcl_sync_stat_completion_callback (int rc, const struct Stat *stat, const voi
 	}
 	zsc->syncDone = 1;
 printf("zootcl_sync_stat_completion_callback: done\n");
-	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
-	evPtr->event.proc = zootcl_EventProc;
-	evPtr->callbackType = NULL_CALLBACK;
-	Tcl_ThreadQueueEvent (zsc->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
-	Tcl_ThreadAlert (zsc->zo->threadId);
+	zootcl_queue_null_event (zsc);
 }
 
 /*
@@ -490,12 +508,7 @@ printf("zootcl_sync_stat_completion_callback: done\n");
 void
 zootcl_sync_data_completion_callback (int rc, const char *value, int valueLen, const struct Stat *stat, const void *context)
 {
-	zootcl_callbackEvent *evPtr;
 	zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)context;
-
-	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
-	evPtr->event.proc = zootcl_EventProc;
-	evPtr->callbackType = NULL_CALLBACK;
 
 	zsc->rc = rc;
 	zsc->syncDone = 1;
@@ -516,8 +529,7 @@ zootcl_sync_data_completion_callback (int rc, const char *value, int valueLen, c
 		zsc->stat = *stat;
 	}
 
-	Tcl_ThreadQueueEvent (zsc->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
-	Tcl_ThreadAlert (zsc->zo->threadId);
+	zootcl_queue_null_event (zsc);
 }
 
 /*
