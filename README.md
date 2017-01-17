@@ -242,6 +242,8 @@ Errata
 ---
 
 * ACLs are not currently supported.
+* Atomically committed multiple zookeeper operations are not current supported.
+* Memory leaks are a distinct possibility.
 
 Links
 ---
