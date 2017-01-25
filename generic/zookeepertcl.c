@@ -1488,9 +1488,10 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			return TCL_ERROR;
 		}
 		status = zsc->rc;
-		if ((status == ZNONODE) && (dataVarObj != NULL)) {
-			// node doesn't exist and they specified -data,
-			// unset data var and version var if defined and
+		if (((status == ZNONODE) || (zsc->dataObj == NULL)) && (dataVarObj != NULL)) {
+			// node doesn't exist or contains no data
+			// and they specified -data, unset their
+			// specified data var and version var and
 			// return 0 indicating no node
 			Tcl_UnsetVar (interp, Tcl_GetString (dataVarObj), 0);
 			if (versionVarObj != NULL) {
