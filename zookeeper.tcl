@@ -43,19 +43,29 @@ namespace eval ::zookeeper  {
 	# copy_data - copy data
 	#
 	proc copy_data {zk data zpath} {
-		# get the node
+		if {![$zk exists $zpath]} {
+			# the node doesn't exist, create it
+			$zk create $zpath -value $data
+			return
+		}
+
+		# node exists, but it may not have any data in it.
+		# if it has data, compare that and if it's the
+		# same, do nothing.
+		#
+		# otherwise, set the data
+
 		if {[$zk get $zpath -data zdata -version zversion]} {
-			# the node exists
 			# if it matches the file, leave it alone
 			if {$data == $zdata} {
 				return
 			}
-			# file is different set the znode to contain it
-			$zk set $zpath $data $zversion
 		} else {
-			# the node doesn't exist, create it
-			$zk create $zpath -value $data
+			set zversion 0
 		}
+
+		# file is different set the znode to contain it
+		$zk set $zpath $data $zversion
 	}
 
 	#
@@ -73,6 +83,23 @@ namespace eval ::zookeeper  {
 		foreach dir [lsort [glob -nocomplain -dir $path -types d *]] {
 			regexp $regexp $dir dummy tailDir
 			zsync $zk $dir $zpath$tailDir $pattern
+		}
+	}
+
+	#
+	# zcopy - copy a znode tree to a filesystem
+	#
+	# zpath is prepended to the destination path
+	#
+	proc zcopy {zk zpath path {pattern *}} {
+		file mkdir $path
+		set regexp "^${path}(.*)"
+		set children [$zk children $zpath]
+		foreach znode $children {
+			regexp $regexp $file dummy tail
+			copy_file $zk $file $zpath$tail
+			regexp $regexp $dir dummy tailDir
+			zcopy $zk $dir $zpath$tailDir $pattern
 		}
 	}
 } ;# namespace ::zookeeper
