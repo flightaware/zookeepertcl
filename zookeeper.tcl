@@ -94,12 +94,11 @@ namespace eval ::zookeeper  {
 	}
 
 	#
-	# sync_ztree_to_filetree - copy a znode tree to a filesystem
+	# sync_znode_to_file - sync the data at zpath to
+	#   path/zpath/Zdata and Zversion, if there is
+	#   data at that znode.
 	#
-	# zpath is prepended to the destination path
-	#
-	proc sync_ztree_to_directory {zk zpath path} {
-		#puts stderr "sync_ztree_to_directory $zk $zpath $path"
+	proc sync_znode_to_file {zk zpath path} {
 		set outpath $path/$zpath
 		set zdataFile $outpath/Zdata
 		set zversionFile $outpath/Zversion
@@ -117,30 +116,42 @@ namespace eval ::zookeeper  {
 			if {$exists} {
 				file delete $zdataFile $zversionFile
 			}
-		} else {
-			# there was data at the znode.
-			# if it matches what we have, no need to write.
-			if {$exists && $stat(size) == [string length $zdata] && [read_file $zdataFile] eq $zdata && [read_file $zversionFile] eq $zversion} {
-				#puts stderr "skip writing $zdataFile, existing one matches"
-			} else {
-				file mkdir $outpath
-				if {!$exists} {
-					# files didn't exist, we can write them without renaming
-					write_file $zdataFile $zdata
-					write_file $zversionFile $zversion
-				} else {
-					# we need to write and the files exist, do it more cleanly
-					# so a reader won't see an empty file if they look at just
-					# the right time.
-					# NB still a race condition here where the zdata is updated
-					# but very briefly the zversion isn't.
-					write_file $zdataFile.new $zdata
-					write_file $zversionFile.new $zversion
-					file rename -force -- $zdataFile.new $zdataFile
-					file rename -force -- $zversionFile.new $zversionFile
-				}
-			}
+			return
 		}
+
+		# there was data at the znode.
+		# if it matches what we have, no need to write.
+		if {$exists && $stat(size) == [string length $zdata] && [read_file $zdataFile] eq $zdata && [read_file $zversionFile] eq $zversion} {
+			#puts stderr "skip writing $zdataFile, existing one matches"
+			return
+		}
+
+		file mkdir $outpath
+		if {!$exists} {
+			# files didn't exist, we can write them without renaming
+			write_file $zdataFile $zdata
+			write_file $zversionFile $zversion
+		} else {
+			# we need to write and the files exist, do it more cleanly
+			# so a reader won't see an empty file if they look at just
+			# the right time.
+			# NB still a race condition here where the zdata is updated
+			# but very briefly the zversion isn't.
+			write_file $zdataFile.new $zdata
+			write_file $zversionFile.new $zversion
+			file rename -force -- $zdataFile.new $zdataFile
+			file rename -force -- $zversionFile.new $zversionFile
+		}
+	}
+
+	#
+	# sync_ztree_to_filetree - copy a znode tree to a filesystem
+	#
+	# zpath is prepended to the destination path
+	#
+	proc sync_ztree_to_directory {zk zpath path} {
+		#puts stderr "sync_ztree_to_directory $zk $zpath $path"
+		sync_znode_to_file $zk $zpath $path
 
 		# recursively invoke ourself for all children of the current znode
 		set children [$zk children $zpath]
