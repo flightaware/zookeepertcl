@@ -126,8 +126,8 @@ namespace eval ::zookeeper  {
 					# but very briefly the zversion isn't.
 					write_file $outpath/zdata.new $zdata
 					write_file $outpath/zversion.new $zversion
-					file rename -force -- $outpath/zdata.new $outpath/$zdata
-					file rename -force -- $outpath/zversion.new $outpath/$zversion
+					file rename -force -- $outpath/zdata.new $outpath/zdata
+					file rename -force -- $outpath/zversion.new $outpath/zversion
 				} else {
 					# files didn't exist, we can write them without renaming
 					write_file $outpath/zdata $zdata
