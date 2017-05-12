@@ -20,6 +20,7 @@
 #========================================================================
 
 #SAMPLE_NEW_VAR	= @SAMPLE_NEW_VAR@
+PKG_MAJ_MIN     = @PKG_MAJ_MIN@
 
 #========================================================================
 # Nothing of the variables below this line should need to be changed.
@@ -80,7 +81,7 @@ mandir		= @mandir@
 
 DESTDIR		=
 
-PKG_DIR		= $(PACKAGE_NAME)$(PACKAGE_VERSION)
+PKG_DIR		= $(PACKAGE_NAME)$(PKG_MAJ_MIN)
 pkgdatadir	= $(datadir)/$(PKG_DIR)
 pkglibdir	= $(libdir)/$(PKG_DIR)
 pkgincludedir	= $(includedir)/$(PKG_DIR)
