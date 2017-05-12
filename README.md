@@ -237,6 +237,20 @@ zookeeper::zsync $zk $path $zpath ?pattern?
 
 Sync a filesystem tree to a znode tree.  zpath is prepended to the destination path.  Compares existing files and znode data and if they are present and identical, does not update the znode.  This makes znode versions increment only when changes are present in corresponding files when zsync is run.
 
+```tcl
+zookeeper::sync_ztree_to_directory $zk $zpath $path
+```
+
+Recursively copy a zookeeper tree to a directory in a filesystem.
+
+All nodes will be created as directories.
+
+If a znode contains data the data will be written in the corresponding directory as the file _zdata_ and the version as the file _zversion_.
+
+The function makes the effort to skip rewriting the data and version files if the existing data and the version files are the same.  (This considerably speeds up the function and reduces filesystem churn.)
+
+Also in the event of changes if there was already a zdata and zversion to renames new files in rather than overwriting them so a reader reading the file at an inopportune moment won't get an empty file.
+
 
 Errata
 ---

@@ -4,6 +4,7 @@
 #
 
 namespace eval ::zookeeper  {
+	variable zkwd "/"
 
 	#
 	# mkpath - make all the znodes
@@ -29,6 +30,12 @@ namespace eval ::zookeeper  {
 		set data [read $fp]
 		close $fp
 		return $data
+	}
+
+	proc write_file {file data} {
+		set fp [open $file w]
+		puts -nonewline $fp $data
+		close $fp
 	}
 
 	#
@@ -87,20 +94,83 @@ namespace eval ::zookeeper  {
 	}
 
 	#
-	# zcopy - copy a znode tree to a filesystem
+	# sync_ztree_to_filetree - copy a znode tree to a filesystem
 	#
 	# zpath is prepended to the destination path
 	#
-	proc zcopy {zk zpath path {pattern *}} {
-		file mkdir $path
-		set regexp "^${path}(.*)"
+	proc sync_ztree_to_directory {zk zpath path} {
+		#puts stderr "sync_ztree_to_directory $zk $zpath $path"
+		set outpath $path/$zpath
+		file mkdir $outpath
+		if {![$zk get $zpath -data zdata -version zversion]} {
+			file delete $outpath/zdata $outpath/zversion
+		} else {
+			set write 1
+			set exists 0
+			try {
+				file stat $outpath/zdata stat
+				if {$stat(size) == [string length $zdata] && [read_file $outpath/zdata] eq $zdata && [read_file $outpath/zversion] eq $zversion} {
+					#puts stderr "skip $zpath - data matches"
+					set write 0
+				}
+			} trap {POSIX ENOENT} {} {
+				set exists 1
+			}
+
+			if {$write} {
+				if {$exists} {
+					# we need to write and the files exist, do it more cleanly
+					# so a reader won't see an empty file if they look at just
+					# the right time.
+					# NB still a race condition here where the zdata is updated
+					# but very briefly the zversion isn't.
+					write_file $outpath/zdata.new $zdata
+					write_file $outpath/zversion.new $zversion
+					file rename -force -- $outpath/zdata.new $outpath/$zdata
+					file rename -force -- $outpath/zversion.new $outpath/$zversion
+				} else {
+					# files didn't exist, we can write them without renaming
+					write_file $outpath/zdata $zdata
+					write_file $outpath/zversion $zversion
+				}
+			}
+		}
 		set children [$zk children $zpath]
 		foreach znode $children {
-			regexp $regexp $file dummy tail
-			copy_file $zk $file $zpath$tail
-			regexp $regexp $dir dummy tailDir
-			zcopy $zk $dir $zpath$tailDir $pattern
+			sync_ztree_to_directory $zk [file join $zpath $znode] $path
 		}
+	}
+
+	proc flatten_path {zpath} {
+		# take out .. and whatever preceded it and anchor to /
+	}
+
+	proc zls {{where ""}} {
+		variable zkwd
+
+		set children [zk children [file join $zkwd $where]]
+		return [lsort $children]
+	}
+
+	proc zpwd {} {
+		variable zkwd
+
+		return $zkwd
+	}
+
+	proc zcd {{where ""}} {
+		variable zkwd
+
+		if {$where eq ""} {
+			set zkwd /
+		} else {
+			set children 
+		}
+		return
+	}
+
+	proc zcat {{what ""}} {
+		variable zkwd
 	}
 } ;# namespace ::zookeeper
 
