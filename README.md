@@ -146,10 +146,12 @@ If the **get** method is invoked synchronously with the **-data** option, the sp
 Also if **get** is used asynchronously then the key-value pairs will not contain a *data* pair if there is no data ssociated with the znode.
 
 ```tcl
-zk delete $path $version
+zk delete $path $version ?-async callback?
 ```
 
 Delete the path on zookeeper server.  Version must be the right version number in accordance with normal zookeeper rules.  Following the same, if **-1** is used as the version number the version check will not be performed by zookeeper.
+
+If **-async** is specified, the request is made asynchronously and *callback* is invoked with a Tcl list of key-value pairs as an argument when the answer arrives.
 
 ```tcl
 zk state
@@ -191,16 +193,17 @@ zk ::zk path /test type changed state connected
 Stat Structure
 ---
 When requesting status using **-stat**, the specified array will be filled with the following elements:
-* czxid - the zxid of the change that caused this znode to be created.
-* mzxid - the zxid of the change that last modified this znode.
-* ctime - the time in milliseconds from epoch when this znode was created.
-* mtime - the time in milliseconds from epoch when this znode was last modified.
-* version - the number of changes to the data of this znode.
-* cversion - the number of changes to the children of this znode.
 * aversion - the number of changes to the ACL of this znode.
-* ephemeralOwner - the session id of the owner of this znode if the znode is an ephemeral znode. If it is not an ephemeral znode, it will be zero.
+* ctime - the time in milliseconds from epoch when this znode was created.
+* cversion - the number of changes to the children of this znode.
+* czxid - the zookeeper transaction ID (zxid) of the change that caused this znode to be created.
 * dataLength - the length of the data field of this znode.
+* ephemeralOwner - the session id of the owner of this znode if the znode is an ephemeral znode. If it is not an ephemeral znode, it will be zero.
+* mtime - the time in milliseconds from epoch when this znode was last modified.
+* mzxid - the zxid of the change that last modified this znode.
 * numChildren - the number of children of this znode.
+* pzxid - the zxid of the change that last modified children of this znode.
+* version - the number of changes to the data of this znode.
 
 zookeeper library functions
 ---
