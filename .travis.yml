@@ -1,0 +1,22 @@
+language: c
+
+sudo: true
+
+os:
+  - linux
+  - osx
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tcl-tk; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew link --force --overwrite tcl-tk; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install zookeeper; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y tcl8.6-dev; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libzookeeper-mt-dev libzookeeper-mt2; fi
+  
+script:
+  - autoreconf -vi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./configure --with-tcl=/usr/local/lib; else ./configure; fi
+  - make
+  - sudo make install
