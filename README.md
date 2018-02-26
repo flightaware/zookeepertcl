@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/flightaware/zookeepertcl.svg?branch=master)](https://travis-ci.org/flightaware/zookeepertcl)
+
 zookeepertcl, a Tcl interface to the Apache zookeeper distributed coordination system
 ===
 
