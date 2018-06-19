@@ -443,7 +443,10 @@ zootcl_stat_completion_callback (int rc, const struct Stat *stat, const void *co
 
 	evPtr->data.rc = rc;
 	evPtr->data.dataObj = NULL;
-	evPtr->data.stat = *stat;
+    
+    if (stat != NULL) {
+	    evPtr->data.stat = *stat;
+    }
 
     evPtr->zo = ztc->zo;
 	ckfree(ztc);
