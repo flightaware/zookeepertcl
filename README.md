@@ -22,7 +22,7 @@ Open source under the permissive Berkeley copyright; see file [LICENSE](LICENSE)
 
 Requirements
 ---
-Requires the Apache Zookeeper C/C++ library [libzookeeper](https://zookeeper.apache.org/doc/trunk/zookeeperProgrammers.html) be installed.
+Requires the Apache Zookeeper C/C++ library [libzookeeper](https://zookeeper.apache.org/doc/current/zookeeperProgrammers.html) be installed.
 
 Building
 ---
@@ -59,9 +59,10 @@ package require zookeeper
 
 zookeeper::zookeeper debug_level debug
 ```
-debug level can be debug, info, warn or error.
 
-`zookeeper::zookeeper version`` returns the version of the C client, like **3.4.6**.  (The version of zookeeper Tcl can always be determined using `package require zookeeper` or one of various other Tcl package methods.)
+debug level can be debug, info, warn, error or none.
+
+`zookeeper::zookeeper version` returns the version of the C client, like **3.4.6**.  (The version of zookeeper Tcl can always be determined using `package require zookeeper` or one of various other Tcl package methods.)
 
 zookeeper::zookeeper init name host timeout ?-async callback?
 
