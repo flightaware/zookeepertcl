@@ -174,7 +174,13 @@ zk is_unrecoverable
 
 Return true if the zookeeper C library says the connection state can't be recovered.
 
-If this returns true then the application must close the zhandle object and try to reconnect.
+If this returns true then the application must destroy the zookeeper object and reconnect.
+
+```tcl
+zk destroy
+```
+
+Destroys the Zookeeper object, disconnecting from Zookeeper and removing all watch or async callbacks in the process.
 
 Watch Callbacks
 ---

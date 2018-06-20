@@ -1972,6 +1972,28 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 /*
  *----------------------------------------------------------------------
  *
+ * zootcl_destroy_subcommand --
+ *
+ *      implement the "destroy" method of a zookeeper tcl command
+ *      object
+ *
+ * Results:
+ *      Always returns TCL_OK whether or not Tcl_DeleteCommandFromToken
+ *		succeeds
+ *
+ *
+ *----------------------------------------------------------------------
+ */
+int
+zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+{
+	Tcl_DeleteCommandFromToken(interp, zo->cmdToken);
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * zootcl_zookeeperObjectObjCmd --
  *
  *      perform methods of a zookeeper object
@@ -2002,6 +2024,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
         "state",
         "recv_timeout",
         "is_unrecoverable",
+		"destroy",
         NULL
     };
 
@@ -2014,7 +2037,8 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		OPT_DELETE,
         OPT_STATE,
 		OPT_RECV_TIMEOUT,
-		OPT_IS_UNRECOVERABLE
+		OPT_IS_UNRECOVERABLE,
+		OPT_DESTROY
     };
 
     // basic command line processing
@@ -2077,6 +2101,9 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (is_unrecoverable (zh) == ZINVALIDSTATE));
 			break;
 		}
+
+		case OPT_DESTROY:
+			return zootcl_destroy_subcommand(interp, objc, objv, zh, zo);
 
 	}
 
