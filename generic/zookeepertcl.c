@@ -248,44 +248,24 @@ int zootcl_stat_to_array (Tcl_Interp *interp, char *arrayName, struct Stat *stat
 /*
  *--------------------------------------------------------------
  *
- * get_ip_str - given a sockaddr, a char * pointer and a max length
- *  for the char* pointer, put a string representation of the IP address 
- *  contained in the sockaddr into the char *
+ * get_in_addr - given a sockaddr struct pointer, return whether
+ *  we need a sockaddr_in or a sockaddr_in6
  *
- * https://gist.github.com/jkomyno/45bee6e79451453c7bbdc22d033a282e
+ * http://beej.us/guide/bgnet/examples/client.c
  *
  * Results:
- *      returns NULL or char * of string 
+ *      returns AF family constant for use with inet_ntop
  *
  * Side effects:
  *		none
  *
  *--------------------------------------------------------------
  */
-char *get_ip_str(const struct sockaddr *sa, char *s, size_t maxlen)
+void *get_in_addr(struct sockaddr *sa)
 {
-	if (sa == NULL) {
-		strncpy(s, "NULL sa", maxlen);
-		return NULL;
-	}
-
-    switch(sa->sa_family) {
-        case AF_INET:
-            inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr),
-                    s, maxlen);
-            break;
-
-        case AF_INET6:
-            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr),
-                    s, maxlen);
-            break;
-
-        default:
-            strncpy(s, "Unknown AF", maxlen);
-            return NULL;
-    }
-
-    return s;
+    if (sa->sa_family == AF_INET)
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
 /*
@@ -2140,12 +2120,15 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		{
 			struct sockaddr sa;
 			socklen_t sockaddr_len; 
-			zookeeper_get_connected_host(zh, &sa, &sockaddr_len);
-
 			char host[INET6_ADDRSTRLEN];
-			host[INET6_ADDRSTRLEN - 1] = '\0';
-			get_ip_str(&sa, host, INET6_ADDRSTRLEN - 1);
 
+			if (zookeeper_get_connected_host(zh, &sa, &sockaddr_len) == NULL) {
+				strcpy(host, "NULL");
+			} else {
+				inet_ntop(sa.sa_family, get_in_addr(&sa), host, sizeof host);
+			}
+
+			host[INET6_ADDRSTRLEN - 1] = '\0';
 			Tcl_SetObjResult(interp, Tcl_NewStringObj(host, -1));
 			break;
 		}
