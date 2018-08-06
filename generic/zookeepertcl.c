@@ -12,6 +12,9 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 int
 zootcl_EventProc (Tcl_Event *tevPtr, int flags);
@@ -237,6 +240,52 @@ int zootcl_stat_to_array (Tcl_Interp *interp, char *arrayName, struct Stat *stat
 	}
 
 	return TCL_OK;
+}
+
+/*
+ * 
+ */
+/*
+ *--------------------------------------------------------------
+ *
+ * get_ip_str - given a sockaddr, a char * pointer and a max length
+ *  for the char* pointer, put a string representation of the IP address 
+ *  contained in the sockaddr into the char *
+ *
+ * https://gist.github.com/jkomyno/45bee6e79451453c7bbdc22d033a282e
+ *
+ * Results:
+ *      returns NULL or char * of string 
+ *
+ * Side effects:
+ *		none
+ *
+ *--------------------------------------------------------------
+ */
+char *get_ip_str(const struct sockaddr *sa, char *s, size_t maxlen)
+{
+	if (sa == NULL) {
+		strncpy(s, "NULL sa", maxlen);
+		return NULL;
+	}
+
+    switch(sa->sa_family) {
+        case AF_INET:
+            inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr),
+                    s, maxlen);
+            break;
+
+        case AF_INET6:
+            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr),
+                    s, maxlen);
+            break;
+
+        default:
+            strncpy(s, "Unknown AF", maxlen);
+            return NULL;
+    }
+
+    return s;
 }
 
 /*
@@ -1991,6 +2040,7 @@ zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], Z
 	return TCL_OK;
 }
 
+
 /*
  *----------------------------------------------------------------------
  *
@@ -2013,7 +2063,6 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 	ZOOAPI zhandle_t *zh = zo->zh;
 	int optIndex;
 
-
     static CONST char *options[] = {
         "get",
         "children",
@@ -2022,6 +2071,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
         "exists",
         "delete",
         "state",
+		"server",
         "recv_timeout",
         "is_unrecoverable",
 		"destroy",
@@ -2036,6 +2086,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		OPT_EXISTS,
 		OPT_DELETE,
         OPT_STATE,
+		OPT_SERVER,
 		OPT_RECV_TIMEOUT,
 		OPT_IS_UNRECOVERABLE,
 		OPT_DESTROY
@@ -2082,6 +2133,20 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			int state = zoo_state (zh);
 			const char *stateString = zootcl_state_to_string (state);
 			Tcl_SetObjResult (interp, Tcl_NewStringObj (stateString, -1));
+			break;
+		}
+
+		case OPT_SERVER:
+		{
+			struct sockaddr sa;
+			socklen_t sockaddr_len; 
+			zookeeper_get_connected_host(zh, &sa, &sockaddr_len);
+
+			char host[256];
+			host[255] = '\0';
+			get_ip_str(&sa, host, 255);
+
+			Tcl_SetObjResult(interp, Tcl_NewStringObj(host, -1));
 			break;
 		}
 
