@@ -2142,9 +2142,9 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			socklen_t sockaddr_len; 
 			zookeeper_get_connected_host(zh, &sa, &sockaddr_len);
 
-			char host[256];
-			host[255] = '\0';
-			get_ip_str(&sa, host, 255);
+			char host[INET6_ADDRSTRLEN];
+			host[INET6_ADDRSTRLEN - 1] = '\0';
+			get_ip_str(&sa, host, INET6_ADDRSTRLEN - 1);
 
 			Tcl_SetObjResult(interp, Tcl_NewStringObj(host, -1));
 			break;
