@@ -2054,6 +2054,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		"server",
         "recv_timeout",
         "is_unrecoverable",
+		"close",
 		"destroy",
         NULL
     };
@@ -2069,6 +2070,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		OPT_SERVER,
 		OPT_RECV_TIMEOUT,
 		OPT_IS_UNRECOVERABLE,
+		OPT_CLOSE,
 		OPT_DESTROY
     };
 
@@ -2149,6 +2151,9 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (is_unrecoverable (zh) == ZINVALIDSTATE));
 			break;
 		}
+
+		case OPT_CLOSE:
+			return zootcl_set_tcl_return_code(interp, zookeeper_close(zh));
 
 		case OPT_DESTROY:
 			return zootcl_destroy_subcommand(interp, objc, objv, zh, zo);
