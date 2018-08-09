@@ -2125,10 +2125,11 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 			struct sockaddr sa;
 			socklen_t sa_len = sizeof sa; 
 			char host[1024];
-			char service[20];
 
 			if (zookeeper_get_connected_host(zh, &sa, &sa_len)) {
-				getnameinfo(&sa, sa_len, host, sizeof host, service, sizeof service, 0);
+				if (getnameinfo(&sa, sa_len, host, sizeof host, NULL, 0, 0) != 0) {
+					strcpy(host, "");	
+				}
 			} else {
 				strcpy(host, "");
 			}
