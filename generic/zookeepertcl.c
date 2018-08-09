@@ -2121,10 +2121,10 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		case OPT_SERVER:
 		{
 			struct sockaddr sa;
-			socklen_t sockaddr_len; 
+			socklen_t sa_len = sizeof sa; 
 			char host[INET6_ADDRSTRLEN];
 
-			if (zookeeper_get_connected_host(zh, &sa, &sockaddr_len) == NULL) {
+			if (zookeeper_get_connected_host(zh, &sa, &sa_len) == NULL) {
 				strcpy(host, "NULL");
 			} else {
 				inet_ntop(sa.sa_family, get_in_addr(&sa), host, sizeof host);
