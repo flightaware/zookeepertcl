@@ -2122,15 +2122,15 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		{
 			struct sockaddr sa;
 			socklen_t sa_len = sizeof sa; 
-			char host[INET6_ADDRSTRLEN];
+			char host[INET6_ADDRSTRLEN + 1];
+			strcpy(host, "");
 
-			if (zookeeper_get_connected_host(zh, &sa, &sa_len) == NULL) {
-				strcpy(host, "NULL");
-			} else {
-				inet_ntop(sa.sa_family, get_in_addr(&sa), host, sizeof host);
+			if (zookeeper_get_connected_host(zh, &sa, &sa_len)) {
+				inet_ntop(sa.sa_family, get_in_addr(&sa), host, INET6_ADDRSTRLEN);
 			}
 
-			host[INET6_ADDRSTRLEN - 1] = '\0';
+			// make sure host is NULL terminated
+			host[INET6_ADDRSTRLEN] = '\0';
 			Tcl_SetObjResult(interp, Tcl_NewStringObj(host, -1));
 			break;
 		}
