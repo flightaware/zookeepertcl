@@ -2158,7 +2158,11 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		}
 
 		case OPT_CLOSE:
+		{
+			zo->zh = NULL;
+			zo->currentFD = -1;
 			return zootcl_set_tcl_return_code(interp, zookeeper_close(zh));
+		}
 
 		case OPT_DESTROY:
 			return zootcl_destroy_subcommand(interp, objc, objv, zh, zo);
