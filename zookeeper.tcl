@@ -191,24 +191,14 @@ namespace eval ::zookeeper  {
 		return
 	}
 
-
 	#
-	# zdigest - given a username and a password for use with the digest
-	#  ACL scheme, return the base-64 encoded SHA1 hex string of 
-	#  the password
-	#
-	proc zdigest {username password} {
-		return [base64::encode [sha1::sha1 "${username}:${password}"]]
-	}
-
-	
-	#
-	# zdigestID - given a username and password for use with the digest
+	# zdigest_id - given a username and password for use with the digest
 	#  ACL scheme, return the id portion of the ACL, which is
 	#  username:[zdigest password]
 	#
-	proc zdigestID {username password} {
-		return [format {%s:%s} $username [zdigest $username $password]]
+	proc zdigest_id {un pw} {
+		set digest [base64::encode [sha1::sha1 -bin "${un}:${pw}"]]
+		return [format {%s:%s} $un $digest]
 	}
 
 } ;# namespace ::zookeeper
