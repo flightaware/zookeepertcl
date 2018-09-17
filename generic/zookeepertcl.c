@@ -1728,6 +1728,11 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
+	if (zoo_state(zh) == 0) {
+		Tcl_SetObjResult(interp, Tcl_NewStringObj("Cannt use a closed handle", -1));
+		return TCL_ERROR;
+	}
+
 	if ((objc < 5) || (objc > 7)) {
 		Tcl_WrongNumArgs (interp, 2, objv, "path data version ?-async callback?");
 		return TCL_ERROR;
