@@ -1728,11 +1728,6 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
-	if (zoo_state(zh) == 0) {
-		Tcl_SetObjResult(interp, Tcl_NewStringObj("Cannt use a closed handle", -1));
-		return TCL_ERROR;
-	}
-
 	if ((objc < 5) || (objc > 7)) {
 		Tcl_WrongNumArgs (interp, 2, objv, "path data version ?-async callback?");
 		return TCL_ERROR;
@@ -2048,8 +2043,8 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
 	ZOOAPI zhandle_t *zh = zo->zh;
-	int optIndex;
 
+	int optIndex;
     static CONST char *options[] = {
         "get",
         "children",
@@ -2093,6 +2088,13 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
         return TCL_ERROR;
     }
 
+	// do not allow most subcommands on closed handles
+	if ((enum options) optIndex != OPT_STATE && zoo_state(zh) == 0) {
+		Tcl_SetObjResult(interp, Tcl_NewStringObj("Cannot use a closed handle", -1));
+		return TCL_ERROR;
+	}
+
+	// hand off each subcommand to its proper handler
     switch ((enum options) optIndex) {
 		case OPT_EXISTS:
 			return zootcl_exists_subcommand(interp, objc, objv, zh, zo);
