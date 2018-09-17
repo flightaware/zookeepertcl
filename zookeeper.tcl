@@ -3,6 +3,9 @@
 #
 #
 
+package require base64
+package require sha1
+
 namespace eval ::zookeeper  {
 	variable zkwd "/"
 
@@ -188,9 +191,26 @@ namespace eval ::zookeeper  {
 		return
 	}
 
-	proc zcat {{what ""}} {
-		variable zkwd
+
+	#
+	# zdigest - given a username and a password for use with the digest
+	#  ACL scheme, return the base-64 encoded SHA1 hex string of 
+	#  the password
+	#
+	proc zdigest {username password} {
+		return [base64::encode [sha1::sha1 "${username}:${password}"]]
 	}
+
+	
+	#
+	# zdigestID - given a username and password for use with the digest
+	#  ACL scheme, return the id portion of the ACL, which is
+	#  username:[zdigest password]
+	#
+	proc zdigestID {username password} {
+		return [format {%s:%s} $username [zdigest $username $password]]
+	}
+
 } ;# namespace ::zookeeper
 
 # vim: set ts=4 sw=4 sts=4 noet :

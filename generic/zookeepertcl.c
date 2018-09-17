@@ -2089,7 +2089,9 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
     }
 
 	// do not allow most subcommands on closed handles
-	if ((enum options) optIndex != OPT_STATE && zoo_state(zh) == 0) {
+	if (zoo_state(zh) == 0 &&
+		!((enum options) optIndex == OPT_STATE ||
+          (enum options) optIndex == OPT_DESTROY)) {
 		Tcl_SetObjResult(interp, Tcl_NewStringObj("Cannot use a closed handle", -1));
 		return TCL_ERROR;
 	}
@@ -2167,7 +2169,6 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		case OPT_CLOSE:
 		{
 			zo->zh = NULL;
-			zo->currentFD = -1;
 			return zootcl_set_tcl_return_code(interp, zookeeper_close(zh));
 		}
 
