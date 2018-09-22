@@ -254,6 +254,12 @@ The function makes the effort to skip rewriting the data and version files if th
 
 Also in the event of changes if there was already a zdata and zversion to renames new files in rather than overwriting them so a reader reading the file at an inopportune moment won't get an empty file.
 
+Errata
+---
+
+* ACLs are not currently supported.
+* Atomically committed multiple zookeeper operations are not current supported.
+* Memory leaks are a distinct possibility.
 
 Links
 ---
