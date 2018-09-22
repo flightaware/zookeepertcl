@@ -2271,6 +2271,7 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 				"warn",
 				"info",
 				"debug",
+				"none",
 				NULL
 			};
 
@@ -2278,7 +2279,8 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 				SUBOPT_ERROR,
 				SUBOPT_WARN,
 				SUBOPT_INFO,
-				SUBOPT_DEBUG
+				SUBOPT_DEBUG,
+				SUBOPT_NONE
 			};
 
 
@@ -2305,6 +2307,10 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 
 				case SUBOPT_DEBUG:
 					zooLogLevel = ZOO_LOG_LEVEL_DEBUG;
+					break;
+
+				case SUBOPT_DEBUG:
+					zooLogLevel = (ZooLogLevel) 0;
 					break;
 			}
 

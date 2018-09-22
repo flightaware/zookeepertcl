@@ -54,14 +54,7 @@ Versions
 Overview
 ---
 
-```tcl
-package require zookeeper
-
-zookeeper::zookeeper debug_level debug
-```
-debug level can be debug, info, warn or error.
-
-`zookeeper::zookeeper version`` returns the version of the C client, like **3.4.6**.  (The version of zookeeper Tcl can always be determined using `package require zookeeper` or one of various other Tcl package methods.)
+`zookeeper::zookeeper version` returns the version of the C client, like **3.4.6**.  (The version of zookeeper Tcl can always be determined using `package require zookeeper` or one of various other Tcl package methods.)
 
 zookeeper::zookeeper init name host timeout ?-async callback?
 
@@ -175,6 +168,11 @@ Return true if the zookeeper C library says the connection state can't be recove
 
 If this returns true then the application must close the zhandle object and try to reconnect.
 
+```tcl
+zookeeper::zookeeper debug_level debug
+```
+debug level can be none, debug, info, warn or error.
+
 Watch Callbacks
 ---
 
@@ -256,13 +254,6 @@ The function makes the effort to skip rewriting the data and version files if th
 
 Also in the event of changes if there was already a zdata and zversion to renames new files in rather than overwriting them so a reader reading the file at an inopportune moment won't get an empty file.
 
-
-Errata
----
-
-* ACLs are not currently supported.
-* Atomically committed multiple zookeeper operations are not current supported.
-* Memory leaks are a distinct possibility.
 
 Links
 ---
