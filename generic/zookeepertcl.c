@@ -2309,7 +2309,7 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 					zooLogLevel = ZOO_LOG_LEVEL_DEBUG;
 					break;
 
-				case SUBOPT_DEBUG:
+				case SUBOPT_NONE:
 					zooLogLevel = (ZooLogLevel) 0;
 					break;
 			}
