@@ -2009,7 +2009,7 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
  *      object
  *
  * Results:
- *      Always returns TCL_OK whether or not Tcl_DeleteCommandFromToken
+ *      Always returns TCL_OK whether or not anything in this function
  *		succeeds
  *
  *
@@ -2018,10 +2018,63 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 int
 zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
+	// Remove the command exit handler
+	Tcl_CmdInfo *infoPtr = (Tcl_CmdInfo *) ckalloc (sizeof (Tcl_CmdInfo));
+	infoPtr->deleteProc = NULL;
+	Tcl_SetCommandInfoFromToken(zo->cmdToken, infoPtr);
+	ckfree(infoPtr);
 	Tcl_DeleteCommandFromToken(interp, zo->cmdToken);
+
+	// Get rid of all event handlers and event sources
+	Tcl_DeleteExitHandler(zootcl_zookeeperObjectDelete, (ClientData)zo);
+	Tcl_DeleteThreadExitHandler(zootcl_zookeeperObjectDelete, (ClientData)zo);
+	if (zo->channel != NULL) {
+		Tcl_DeleteChannelHandler(zo->channel, zootcl_socket_ready, (ClientData)zo);
+		Tcl_DetachChannel(zo->interp, zo->channel);
+	}
+	Tcl_DeleteEventSource(zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData)zo);
+
+	// Close Zookeeper, free memory and get outta here
+	zookeeper_close(zo->zh);
+	ckfree(zo);
 	return TCL_OK;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_close_subcommand --
+ *
+ *      implement the "close" method of a zookeeper tcl command
+ *      object
+ *
+ * Results:
+ *		returns the result of calling zookeeper_close
+ *
+ *
+ *----------------------------------------------------------------------
+ */
+int
+zootcl_close_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+{
+	// Get rid of all channels and event sources
+	Tcl_DeleteExitHandler(zootcl_zookeeperObjectDelete, (ClientData)zo);
+	Tcl_DeleteThreadExitHandler(zootcl_zookeeperObjectDelete, (ClientData)zo);
+	if (zo->channel != NULL) {
+		Tcl_DeleteChannelHandler(zo->channel, zootcl_socket_ready, (ClientData)zo);
+		Tcl_DetachChannel(zo->interp, zo->channel);
+		zo->channel = NULL;
+		zo->currentFD = -1;
+	}
+	Tcl_DeleteEventSource(zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData)zo);
+
+	// Close Zookeeper and get outta here
+	zo->closed = 1;
+
+	int status = zookeeper_close(zo->zh);
+	zo->zh = NULL;
+	return zootcl_set_tcl_return_code(interp, status);
+}
 
 /*
  *----------------------------------------------------------------------
@@ -2089,7 +2142,9 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
     }
 
 	// do not allow most subcommands on closed handles
-	if ((enum options) optIndex != OPT_STATE && zoo_state(zh) == 0) {
+	int okForClosed = (enum options) optIndex == OPT_STATE ||
+		              (enum options) optIndex == OPT_DESTROY;
+	if (!okForClosed && zo->closed) {
 		Tcl_SetObjResult(interp, Tcl_NewStringObj("Cannot use a closed handle", -1));
 		return TCL_ERROR;
 	}
@@ -2166,9 +2221,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 
 		case OPT_CLOSE:
 		{
-			zo->zh = NULL;
-			zo->currentFD = -1;
-			return zootcl_set_tcl_return_code(interp, zookeeper_close(zh));
+			return zootcl_close_subcommand(interp, objc, objv, zh, zo);
 		}
 
 		case OPT_DESTROY:
@@ -2253,6 +2306,7 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zo->threadId = Tcl_GetCurrentThread ();
 	zo->channel = NULL;
 	zo->currentFD = -1;
+	zo->closed = 0;
 	zo->initCallbackObj = callbackObj;
 
 	zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
