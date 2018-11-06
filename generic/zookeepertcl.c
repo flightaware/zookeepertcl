@@ -2261,7 +2261,6 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zo->threadId = Tcl_GetCurrentThread ();
 	zo->channel = NULL;
 	zo->currentFD = -1;
-	zo->closed = 0;
 	zo->initCallbackObj = callbackObj;
 
 	zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
