@@ -31,7 +31,6 @@ typedef struct zootcl_objectClientData
 	Tcl_Command cmdToken;
 	Tcl_Channel channel;
 	int currentFD;
-	int closed;
 	Tcl_Obj *initCallbackObj; // handle callbacks from zookeeper_init callback function
 } zootcl_objectClientData;
 

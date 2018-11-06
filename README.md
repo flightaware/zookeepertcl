@@ -182,6 +182,12 @@ zk destroy
 
 Destroys the Zookeeper object, disconnecting from Zookeeper and removing all watch or async callbacks in the process.
 
+```tcl
+zk close
+```
+
+Alias for the `destroy` sub-command.
+
 Watch Callbacks
 ---
 
