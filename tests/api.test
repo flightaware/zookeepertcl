@@ -1,0 +1,67 @@
+package require tcltest
+namespace import ::tcltest::*
+
+#
+# HELPER PROCS 
+#
+proc create_async {cDict} {
+    set ::createAsync $cDict
+}
+
+
+#
+# CREATE
+#
+test create_sync {create a node and get its value} -body {
+    set newNodeValue testingValueSync
+    set newNodePath [file join / testCreateSync]
+    zk create $newNodePath -value $newNodeValue
+
+    return [zk get $newNodePath -version nodeVersion]
+} -cleanup {
+    zk delete $newNodePath $nodeVersion
+} -result testingValueSync
+
+test create_async {create a node using async and get its value} -body {
+    set newNodeValue testingValueAsync
+    set newNodePath [file join / testCreateAsync]
+    zk create $newNodePath -value $newNodeValue -async create_async
+
+    vwait ::createAsync
+    return [dict get $::createAsync status]
+} -cleanup {
+    zk delete $newNodePath $nodeVersion
+} -result ZOK
+
+test create_node_twice_sync {
+    create a node and then try to create it again
+} -body {
+    set newNodeValue createDup
+    set newNodePath [file join / createDup]
+    zk create $newNodePath -value $newNodeValue
+
+    # try it again even though it already exists
+    catch {zk create $newNodePath -value $newNodeValue} 
+    puts $::errorCode
+} -cleanup {
+    zk delete $newNodePath -1
+} -output "ZOOKEEPER ZNODEEXISTS {node exists}" -match regexp
+
+test create_node_twice_async {
+    create a node using async and then try to create it again
+} -body {
+    set newNodeValue createDup
+    set newNodePath [file join / createDup]
+    zk create $newNodePath -value $newNodeValue
+
+    # try it again even though it already exists
+    zk create $newNodePath -value $newNodeValue -async create_async
+    vwait ::createAsync
+    return [dict get $::createAsync status]
+} -cleanup {
+    zk delete $newNodePath -1
+} -result ZNODEEXISTS
+
+cleanupTests
+
+# vim: set ts=8 sw=4 sts=4 noet :
