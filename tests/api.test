@@ -22,6 +22,16 @@ test create_sync {create a node and get its value} -body {
     zk delete $newNodePath $nodeVersion
 } -result testingValueSync
 
+test create_sync_null_data {create a node with no data} -body {
+    set newNodeValue testingValueSync
+    set newNodePath [file join / testCreateSyncNoData]
+    zk create $newNodePath 
+
+    return [zk get $newNodePath -version nodeVersion]
+} -cleanup {
+    zk delete $newNodePath $nodeVersion
+} -result ""
+
 test create_async {create a node using async and get its value} -body {
     set newNodeValue testingValueAsync
     set newNodePath [file join / testCreateAsync]
@@ -61,6 +71,18 @@ test create_node_twice_async {
 } -cleanup {
     zk delete $newNodePath -1
 } -result ZNODEEXISTS
+
+test create_ephemeral_node {
+    create an ephemeral node, disconnect and verify that it no longer exists
+} -body {
+    set eNodePath [file join / createEphem]
+    zk create $eNodePath -ephemeral
+
+    zk destroy
+    connect_to_zookeeper
+
+    return [zk exists $eNodePath]
+} -result 0
 
 cleanupTests
 
