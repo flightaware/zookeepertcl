@@ -10,7 +10,9 @@ proc create_async {cDict} {
 
 
 #
-# CREATE
+#
+# API TESTS
+#
 #
 test create_sync {create a node and get its value} -body {
     set newNodeValue testingValueSync
@@ -83,6 +85,55 @@ test create_ephemeral_node {
 
     return [zk exists $eNodePath]
 } -result 0
+
+test create_sequential_node {
+    create a sequential node and verify that it has the right number of digits
+    which, according to the Zookeeper documentation, is 10, i.e., %010d
+} -body {
+    set sNodePath [file join / createSeq_]
+    set sNodePath [zk create $sNodePath -sequence]
+    
+    set relativeName [lindex [file split $sNodePath] end]
+    set numPart [lindex [split $relativeName _] end]
+    return [string length $numPart]
+} -cleanup {
+    # create does not respect chroot when it is used
+    # so have to compensate for this by being explicit 
+    # in specifying the path of the node to delete
+    zk delete [file join / $relativeName] -1
+} -result 10
+
+test create_numerous_sequential_nodes {
+    create many sequential nodes and verify that they only exhibit
+    monotonic sequence numbers
+} -body {
+    set sNodeBase [file join / createSeqs_]
+    set seqNums [list]
+    for {set i 0} {$i < 10} {incr i} {
+	set sPath [zk create $sNodeBase -sequence -ephemeral]
+	set sPath [lindex [file split $sPath] end]
+	set seqNum [lindex [split $sPath _] end]
+	lappend seqNums [scan $seqNum %d]
+    }
+
+    return [expr {$seqNums eq [lsort -integer $seqNums]}]
+} -result 1
+
+test exists_created_node_sync {
+    create a node and check for its existence in sync mode
+}
+
+test exists_created_node_async {
+    create a node and check for its existence in async mode
+}
+
+test exists_deleted_node_sync {
+
+}
+
+test exists_deleted_node_async {
+
+}
 
 cleanupTests
 
