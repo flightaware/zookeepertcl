@@ -11,7 +11,7 @@ proc create_async {cDict} {
 
 #
 #
-# API TESTS
+# CREATE
 #
 #
 test create_sync {create a node and get its value} -body {
@@ -119,6 +119,11 @@ test create_numerous_sequential_nodes {
     return [expr {$seqNums eq [lsort -integer $seqNums]}]
 } -result 1
 
+#
+#
+# EXISTS
+#
+#
 test exists_created_node_sync {
     create a node and check for its existence in sync mode
 }
@@ -134,6 +139,24 @@ test exists_deleted_node_sync {
 test exists_deleted_node_async {
 
 }
+
+#
+#
+# CHILDREN
+#
+#
+
+#
+#
+# SET
+#
+#
+
+#
+#
+# DELETE
+#
+#
 
 cleanupTests
 
