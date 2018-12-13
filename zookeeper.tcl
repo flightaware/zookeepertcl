@@ -67,7 +67,7 @@ namespace eval ::zookeeper  {
 
 		if {[$zk get $zpath -data zdata -version zversion]} {
 			# if it matches the file, leave it alone
-			if {$data == $zdata} {
+			if {[info exists zdata] && $data == $zdata} {
 				return
 			}
 		} else {
@@ -113,7 +113,7 @@ namespace eval ::zookeeper  {
 			set exists 0
 		}
 
-		if {![$zk get $zpath -data zdata -version zversion]} {
+		if {![$zk get $zpath -data zdata -version zversion] || ![info exists zdata]} {
 			# there is no data at the znode.  if there is a file,
 			# delete it.
 			if {$exists} {
@@ -161,10 +161,6 @@ namespace eval ::zookeeper  {
 		foreach znode $children {
 			sync_ztree_to_directory $zk [file join $zpath $znode] $path
 		}
-	}
-
-	proc flatten_path {zpath} {
-		# take out .. and whatever preceded it and anchor to /
 	}
 
 	proc zls {{where ""}} {
