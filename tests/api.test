@@ -8,6 +8,21 @@ proc create_async {cDict} {
     set ::createAsync $cDict
 }
 
+proc exists_async {eDict} {
+    set ::existsAsync $eDict
+}
+
+proc children_async {cDict} {
+    set ::childrenAsync $cDict
+}
+
+proc set_async {sDict} {
+    set ::setAsync $sDict
+}
+
+proc delete_async {dDict} {
+    set ::deleteAsync $dDict
+}
 
 #
 #
@@ -126,37 +141,166 @@ test create_numerous_sequential_nodes {
 #
 test exists_created_node_sync {
     create a node and check for its existence in sync mode
-}
+} -body {
+    set eNodePath [file join / createEphem]
+    zk create $eNodePath 
+
+    zk exists $eNodePath -version nodeVersion
+} -cleanup {
+    zk delete $eNodePath $nodeVersion
+} -result 1
 
 test exists_created_node_async {
     create a node and check for its existence in async mode
-}
+} -body {
+    set eNodePath [file join / createEphem]
+    zk create $eNodePath 
+
+    zk exists $eNodePath -async exists_async 
+    vwait ::existsAsync
+
+    return [dict get $::existsAsync status]
+} -cleanup {
+    zk delete $eNodePath [dict get $::existsAsync version]
+} -result ZOK
 
 test exists_deleted_node_sync {
+    check for the existence of a node that does not exist in sync mode
+} -body {
+    set eNodePath [file join / createEphem]
+    zk create $eNodePath 
+    zk delete $eNodePath -1
 
-}
+    # test several invocations of exists
+    set e1 [zk exists $eNodePath -version nodeVersion]
+    set e2 [zk exists $eNodePath -stat statArray]
+    set e3 [zk exists $eNodePath]
+
+    # if any of them return 1, this should fail
+    return [expr {$e1 || $e2 || $e3}]
+} -result 0
 
 test exists_deleted_node_async {
+    check for the existence of a node that does not exist in async mode
+} -body {
+    set eNodePath [file join / createEphem]
+    zk create $eNodePath 
+    zk delete $eNodePath -1
 
-}
+    zk exists $eNodePath -async exists_async 
+    vwait ::existsAsync
+
+    return [dict get $::existsAsync status]
+} -result ZNONODE
 
 #
 #
 # CHILDREN
 #
 #
+test children_sync_normal {
+    create several children in sync mode and test for their existence
+} -body {
+    set parentPath [file join / children]
+    zk create $parentPath
+
+    set children {0 1 2 3 4 5 6 7 8 9}
+    foreach child $children {
+	zk create [file join $parentPath $child]	
+    }
+
+    set zkChildren [lsort -integer [zk children $parentPath]]
+    return [expr {$children eq $zkChildren}]
+} -cleanup {
+    foreach child $children {
+	zk delete [file join $parentPath $child] -1
+    }
+} -result 1
+
+test children_async_normal {
+    create several children in async mode and test for their existence
+} -body {
+    set parentPath [file join / children]
+    zk create $parentPath
+
+    set children {0 1 2 3 4 5 6 7 8 9}
+    foreach child $children {
+	zk create [file join $parentPath $child]	
+    }
+
+    zk children $parentPath -async children_async
+    vwait ::childrenAsync
+} -cleanup {
+    foreach child $children {
+	zk delete [file join $parentPath $child] -1
+    }
+} -result 1
+
+test children_sync_no_children {
+    check for children in sync mode on a znode that has no children
+}
+
+test children_async_no_children {
+    check for children in async mode on a znode that has no children
+} 
 
 #
 #
 # SET
 #
 #
+test set_sync_normal {
+
+}
+
+test set_async_normal {
+
+}
+
+test set_sync_version_wrong {
+
+}
+
+test set_async_version_wrong {
+
+}
+
+test set_sync_madeup_znode {
+
+}
+
+test set_async_madeup_znode {
+
+}
 
 #
 #
 # DELETE
 #
 #
+test delete_sync_normal {
+
+}
+
+test delete_async_normal {
+
+}
+
+test delete_sync_version_wrong {
+
+}
+
+test delete_async_version_wrong {
+
+}
+
+test delete_sync_madeup_znode {
+
+}
+
+test delete_async_madeup_znode {
+
+}
 
 cleanupTests
 
