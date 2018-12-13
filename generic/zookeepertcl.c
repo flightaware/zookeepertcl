@@ -1522,12 +1522,12 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			return TCL_ERROR;
 		}
 		status = zsc->rc;
-		if (((status == ZNONODE) || (zsc->dataObj == NULL)) && (dataVarObj != NULL)) {
-			// node doesn't exist or contains no data
-			// and they specified -data, unset their
-			// specified data var and version var and
-			// return 0 indicating no node
-			Tcl_UnsetVar (interp, Tcl_GetString (dataVarObj), 0);
+		
+		// if the node does not exist and -data was specified
+		// unset the var: do the same if a -version var was
+		// also specified and, finally, return 0
+		if (status == ZNONODE && dataVarObj != NULL) {
+			Tcl_UnsetVar(interp, Tcl_GetString(dataVarObj), 0);
 			if (versionVarObj != NULL) {
 				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
 			}
@@ -1545,6 +1545,13 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			if (zsc->dataObj != NULL) {
 				Tcl_SetObjResult (interp, zsc->dataObj);
 			}
+		} else if (zsc->dataObj == NULL) { 
+			// if the node does exist, but the data in the znode is NULL
+			// unset the var name specified by -data
+			Tcl_UnsetVar(interp, Tcl_GetString(dataVarObj), 0);
+
+			// Need to set a boolean result to return to the caller
+			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
 		} else {
 			if (Tcl_SetVar2Ex (interp, Tcl_GetString (dataVarObj), NULL, zsc->dataObj, TCL_LEAVE_ERR_MSG) == NULL) {
 				ckfree (zsc);

@@ -209,9 +209,9 @@ test get_data_flag_no_data {
     zk create $newNode 
 
     set res [zk get $newNode -version gVersion -data gData]
-    return [expr {!$res && ![info exists gData]}]
+    return [expr {$res && ![info exists gData]}]
 } -cleanup {
-    zk delete $newNode -1
+    zk delete $newNode $gVersion
 } -result 1
 
 test get_sync_znode_madeup {
