@@ -35,9 +35,11 @@ proc main {argv} {
 	{skip.arg "" "List of patterns to determine whether a test should be skipped"}
 	{testDebugLevel.arg 0 "Test debug level"}
 	{testFiles.arg "*.test" "List of patterns to determine what test files to evaluate"}
+	{testMatch.arg "*" "List of patterns to determine which test cases should be run"}
 	{testVerbosity.arg "body error" "Type of output verbosity"}
 	{zkDebugLevel.arg "none" "debug_level to set in the zookeepertcl library during the tests"}
 	{zkHostString.arg "localhost:2181" "Zookeeper connection string used for running tests"}
+	{zkSyncTimeout.arg 1500 "Async callback timeout to ensure async tests cannot hang indefinitely"}
 	{zkTimeout.arg 3000 "Connection timeout in milliseconds"}
     } 
 
@@ -55,6 +57,7 @@ proc main {argv} {
     tcltest::configure -debug $::params(testDebugLevel)
     tcltest::configure -verbose $::params(testVerbosity)
     tcltest::configure -file $::params(testFiles)
+    tcltest::configure -match $::params(testMatch)
     tcltest::configure -skip $::params(skip)
 
     connect_to_zookeeper
