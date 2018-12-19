@@ -1,0 +1,269 @@
+##
+##
+## watches.test - Test watch callbacks for the following API
+##  commands:
+##  
+##  - GET
+##  - CHILDREN
+##  - EXISTS
+##
+##
+package require tcltest
+namespace import ::tcltest::*
+
+proc watch_cb {wDict} {
+    set ::watchData $wDict
+}
+
+##
+##
+## GET
+##
+##
+test get_watch_data_changed {
+    Ensure that a get watch fires when the data is changed
+} -body {
+    set newNodeValue testingValueSync
+    set newNodePath [file join / testGetWatch]
+    zk create $newNodePath -value $newNodeValue
+
+    zk get $newNodePath -watch watch_cb -version gVersion
+    
+    after idle [list after 0 [list zk set $newNodePath newData $gVersion]]
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $newNodePath -1
+} -result {/testGetWatch changed}
+
+test get_watch_node_deleted {
+    Ensure that a get watch fires when the node is deleted
+} -body {
+    set newNodeValue testingValueSync
+    set newNodePath [file join / testGetWatch]
+    zk create $newNodePath -value $newNodeValue
+
+    zk get $newNodePath -watch watch_cb -version gVersion
+    
+    after idle [list after 0 [list zk delete $newNodePath $gVersion]]
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -result {/testGetWatch deleted}
+
+test get_watch_not_fired_get_data {
+    Ensure that a get watch does not fire when the data from the node is retrieved
+} -body {
+    set newNodeValue testingValueSync
+    set newNodePath [file join / testGetWatch]
+    zk create $newNodePath -value $newNodeValue
+
+    zk get $newNodePath -watch watch_cb -version gVersion
+    
+    after idle [list after 0 [list zk get $newNodePath]] 
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $newNodePath $gVersion
+} -result {/ timeout}
+
+##
+##
+## CHILDREN
+##
+##
+test children_watch_new_child {
+    Ensure that a children watch is fired when a new child is created
+} -body {
+    set newNodeValue testingValueSync
+    set newNodePath [file join / testChildWatch]
+    zk create $newNodePath -value $newNodeValue
+    zk children $newNodePath -watch watch_cb
+    
+    set newChildPath [file join $newNodePath child0]
+    after idle [list after 0 [list zk create $newChildPath -value child]]
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $newChildPath -1
+    zk delete $newNodePath -1
+} -result {/testChildWatch child}
+
+test children_watch_child_deleted {
+    Ensure that a children watch is fired when a child is deleted
+} -body {
+    set newNodePath [file join / testChildWatch]
+    zk create $newNodePath -value childTest
+
+    set newChildPath [file join $newNodePath child0]
+    zk create $newChildPath -value newChild
+
+    zk children $newNodePath -watch watch_cb
+    
+    after idle [list after 0 [list zk delete $newChildPath -1]]
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $newNodePath -1
+} -result {/testChildWatch child}
+
+test children_watch_not_fired_get_data {
+    Ensure that a children watch is not fired when the data in a child is retrieved
+} -body {
+    set newNodePath [file join / testChildWatch]
+    zk create $newNodePath -value childWatchTest
+
+    set childNodePath [file join $newNodePath child]
+    zk create $childNodePath -value newChild
+
+    zk children $newNodePath -watch watch_cb
+    
+    after idle [list after 0 [list zk get $childNodePath -version gVersion]]
+
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $childNodePath $gVersion
+    zk delete $newNodePath -1
+} -result {/ timeout}
+
+test children_watch_not_fired_child_set_data {
+    Ensure that a children watch is not fired when the data in a child is modified
+} -body {
+    set newNodePath [file join / testChildWatch]
+    zk create $newNodePath -value childWatchTest
+
+    set childNodePath [file join $newNodePath child]
+    zk create $childNodePath -value newChild
+
+    zk children $newNodePath -watch watch_cb
+    
+    after idle [list after 0 [list zk set $childNodePath newData -1]]
+
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $childNodePath -1
+    zk delete $newNodePath -1
+} -result {/ timeout}
+
+##
+##
+## EXISTS
+##
+##
+test exists_watch_create_node {
+    Ensure that an exists watch fires when the node is created
+} -body {
+    set newNodePath [file join / testExistsWatch]
+    zk exists $newNodePath -watch watch_cb
+
+    after idle [list after 0 [list zk create $newNodePath]]
+
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $newNodePath -1
+} -result {/testExistsWatch created}
+
+test exists_watch_delete_node {
+    Ensure that an exists watch fires when the node is deleted
+} -body {
+    set newNodePath [file join / testExistsWatch]
+    zk create $newNodePath -value existsWatch
+
+    zk exists $newNodePath -watch watch_cb
+
+    after idle [list after 0 [list zk delete $newNodePath -1]]
+
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -result {/testExistsWatch deleted}
+
+test exists_watch_set_data {
+    Ensure that an exists watch fires when setting data on the node
+} -body {
+    set newNodePath [file join / testExistsWatch]
+    zk create $newNodePath -value existsWatch
+    
+    zk exists $newNodePath -watch watch_cb
+
+    after idle [list after 0 [list zk set $newNodePath newData -1]]
+
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $newNodePath -1
+} -result {/testExistsWatch changed}
+
+test exists_watch_not_fire_new_child {
+    Ensure an exists watch does not fire when a new child node is created
+} -body {
+    set newNodePath [file join / testExistsWatch]
+    zk create $newNodePath -value existsWatch
+    
+    zk exists $newNodePath -watch watch_cb
+
+    set newChildPath [file join $newNodePath child]
+    after idle [list after 0 [list zk create $newChildPath]] 
+
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $newChildPath -1
+    zk delete $newNodePath -1
+} -result {/ timeout}
+
+test exists_watch_not_fire_get_data {
+    Ensure that an exists watch does not fire when getting data from the node
+} -body {
+    set newNodePath [file join / testExistsWatch]
+    zk create $newNodePath -value existsWatch
+    
+    zk exists $newNodePath -watch watch_cb
+
+    after idle [list after 0 [list zk get $newNodePath -version gVersion]] 
+
+    set afterID [after 1500 {set ::watchData {path / type timeout}}]
+    vwait ::watchData
+    after cancel $afterID
+
+    return [list [dict get $::watchData path] [dict get $::watchData type]]
+} -cleanup {
+    zk delete $newNodePath $gVersion
+} -result {/ timeout}
+
+
+# vim: set ts=8 sw=4 sts=4 noet :

@@ -1,3 +1,14 @@
+##
+##
+## api.test - Test the following Zookeeper API commands:
+##  
+##  - CREATE
+##  - GET
+##  - EXISTS
+##  - CHILDREN
+##  - SET
+##  - DELETE
+##
 package require tcltest
 namespace import ::tcltest::*
 
