@@ -265,5 +265,6 @@ test exists_watch_not_fire_get_data {
     zk delete $newNodePath $gVersion
 } -result {/ timeout}
 
+cleanupTests
 
 # vim: set ts=8 sw=4 sts=4 noet :

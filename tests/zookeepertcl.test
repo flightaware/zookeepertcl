@@ -50,4 +50,6 @@ test copy_data_node_exists_null_data {
     zk delete $zpath -1
 } -result newData
 
+cleanupTests
+
 # vim: set ts=8 sw=4 sts=4 noet :
