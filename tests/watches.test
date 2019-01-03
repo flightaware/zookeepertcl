@@ -169,7 +169,8 @@ test children_watch_not_fired_child_set_data {
 
 test children_watch_for_node_not_exists_then_created {
     Ensure that if a child watch is set on a node that does not exist and then
-    that node is created that ...
+    that node is created that the watch does not fire when the node and a child
+    are created
 } -body {
     set newNodePath [file join / testChildNodeNotExists]
     zk children $newNodePath -watch watch_cb
