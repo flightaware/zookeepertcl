@@ -116,7 +116,7 @@ Return 1 if the path exists and 0 if it doesn't.  **-watch**, **-stat** and **-v
 
 If **-async** is specified, the request is made asynchronously and *callback* is invoked with a Tcl list of key-value pairs as an argument when the answer arrives.
 
-Neither -watch, -stat or -version can be specified when -async is used.
+Neither -stat or -version can be specified when -async is used.
 
 ```tcl
 zk children $path ?-async callback? ?-watch code?
