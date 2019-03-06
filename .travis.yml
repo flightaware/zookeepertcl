@@ -17,6 +17,6 @@ before_install:
   
 script:
   - autoreconf -vi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./configure --with-tcl=/usr/local/lib; else ./configure; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./configure --with-tcl=/usr/local/opt/tcl-tk/lib; else ./configure; fi
   - make
   - sudo make install
