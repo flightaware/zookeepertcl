@@ -85,7 +85,7 @@ set znode [zk create /k -value woof -ephemeral]
 zk get $znode
 ```
 
-This creates, sets, and fetches the contents of an *ephemeral node* that only lasts for the life of the process, on zookeeper.  You need to use the znode ID returned in place of the one you specified the name of the znode is altered by zookeeper based on what you asked for.  Like /k becomes /k00000000.  (I think this change only occurs if -ephemeral or -sequence is used.)
+This creates, sets, and fetches the contents of an *ephemeral node* that only lasts for the life of the process, on zookeeper.
 
 ```tcl
 zk create path ?-value value? ?-ephemeral? ?-sequence? ?-async callback?
@@ -94,6 +94,8 @@ zk create path ?-value value? ?-ephemeral? ?-sequence? ?-async callback?
 Create the path.  Value, if provided, is set as the value at the path else the znode's value is left as null.  **-ephemeral** makes the path exist only for the life of the connection from this process in accordance with normal zookeeper behavior.  If **-sequence** is provided, a unique monotonically increasing sequence number is appended to the pathname.  This can be very handy for the kinds of things zookeeper is typically used for.  Please investigate general zookeeper documentation for more details.
 
 If **-async** is provided, *callback* will be invoked with a list of key-value pairs containing the status of the operation once it is complete.
+
+Returns the created znode ID. This is primarily important for the **-sequence** option, since it appends a unique sequence number to the node name requested (for example /k becomes /k00000000).
 
 ```tcl
 zk get $path ?-watch code? ?-stat array? ?-async callback? ?-data dataVar? ?-version versionVar?
