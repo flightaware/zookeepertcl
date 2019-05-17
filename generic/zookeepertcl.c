@@ -1269,7 +1269,7 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		zsc->syncDone = 0;
 		status = zoo_awexists (zh, path, wfn, (void *)watcherCallbackObj, zootcl_sync_stat_completion_callback, zsc);
 		// handle errors from the call like bad arguments and stuff
-		if (status != ZOK) {
+		if (status != ZOK && status != ZMARSHALLINGERROR) {
 			ckfree (zsc);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
@@ -1278,6 +1278,10 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		// the syncDone flag in the sync callback context asc
 		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
 			return TCL_ERROR;
+		}
+
+		if(status == ZMARSHALLINGERROR) {
+			return zootcl_set_tcl_return_code (interp, status);
 		}
 
 		// ok, we got our zsc filled up, if the status isn't OK,
