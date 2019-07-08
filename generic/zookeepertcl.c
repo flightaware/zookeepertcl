@@ -1644,7 +1644,7 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		if (status != ZOK && status != ZNONODE) {
 			ckfree (strings);
 			return zootcl_set_tcl_return_code (interp, status);
-		} else {
+		} else if (status == ZNONODE) {
 			// do not consider a non-existent path to be an error in this case
 			status = ZOK;
 			strings->count = 0;
