@@ -1647,6 +1647,7 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		} else {
 			// do not consider a non-existent path to be an error in this case
 			status = ZOK;
+			strings->count = 0;
 		}
 		
 		int count = strings ? strings->count : 0;
