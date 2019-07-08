@@ -1850,24 +1850,18 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	int status;
 
 	if (callbackObj == NULL) {
-		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
-		zsc->zo = zo;
-		zsc->syncDone = 0;
+		// sync version
+		int pathBufferLen = 1024;
+		char pathBuffer[pathBufferLen];
+		status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen);
 
-		status = zoo_acreate (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, zootcl_sync_string_completion_callback, zsc);
 		if (status != ZOK) {
-			ckfree (zsc);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
-		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
-			ckfree (zsc);
-			return TCL_ERROR;
-		}
-		status = zsc->rc;
+
 		if (status == ZOK) {
-			Tcl_SetObjResult (interp, zsc->dataObj);
+			Tcl_SetObjResult (interp, Tcl_NewStringObj(pathBuffer, pathBufferLen));
 		}
-		ckfree (zsc);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
