@@ -1744,16 +1744,10 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
 	if (callbackObj == NULL) {
 		// synchronous set
-		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
-		zsc->zo = zo;
-		zsc->syncDone = 0;
-		status = zoo_aset (zh, path, buffer, bufferLen, version, zootcl_sync_stat_completion_callback, zsc);
-		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
-			return TCL_ERROR;
-		}
-		int rc = zsc->rc;
-		ckfree (zsc);
-		return zootcl_set_tcl_return_code (interp, rc);
+		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
+		status = zoo_set2(zh, path, buffer, bufferLen, version, stat);
+
+		ckfree (stat);
 	} else {
 		// asynchronous set
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
