@@ -1487,7 +1487,9 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
 	// if asyncCallbackObj is null, do the synchronous version
 	if (asyncCallbackObj == NULL) {
-		int bufferLen = 1048576;
+		// make the buffer 1MB + 1 byte since 1MB is the
+		// default maximum size for a znode's data
+		int bufferLen = 1048576 + 1;
 		char buffer[bufferLen];
 		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
 
