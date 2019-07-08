@@ -337,14 +337,14 @@ test children_sync_normal {
 
     set children {0 1 2 3 4 5 6 7 8 9}
     foreach child $children {
-	zk create [file join $parentPath $child]	
+	      zk create [file join $parentPath $child]	
     }
 
     set zkChildren [lsort -integer [zk children $parentPath]]
     return [expr {$children eq $zkChildren}]
 } -cleanup {
     foreach child $children {
-	zk delete [file join $parentPath $child] -1
+	      zk delete [file join $parentPath $child] -1
     }
     zk delete $parentPath -1
 } -result 1

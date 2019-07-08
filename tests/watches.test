@@ -29,7 +29,7 @@ test get_watch_data_changed {
 
     zk get $newNodePath -watch watch_cb -version gVersion
     
-    after idle [list after 0 [list zk set $newNodePath newData $gVersion]]
+    zk set $newNodePath newData $gVersion
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
     after cancel $afterID
@@ -48,13 +48,13 @@ test get_watch_node_deleted {
 
     zk get $newNodePath -watch watch_cb -version gVersion
     
-    after idle [list after 0 [list zk delete $newNodePath $gVersion]]
+    zk delete $newNodePath $gVersion
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
     after cancel $afterID
 
     return [list [dict get $::watchData path] [dict get $::watchData type]]
-} -result {/testGetWatch deleted}
+} -result {/testGetWatch deleted} 
 
 test get_watch_not_fired_get_data {
     Ensure that a get watch does not fire when the data from the node is retrieved
@@ -64,8 +64,8 @@ test get_watch_not_fired_get_data {
     zk create $newNodePath -value $newNodeValue
 
     zk get $newNodePath -watch watch_cb -version gVersion
-    
-    after idle [list after 0 [list zk get $newNodePath]] 
+    zk get $newNodePath
+
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
     after cancel $afterID
@@ -82,6 +82,8 @@ test get_watch_not_fired_get_data {
 ##
 test children_watch_new_child {
     Ensure that a children watch is fired when a new child is created
+} -setup {
+    update
 } -body {
     set newNodeValue testingValueSync
     set newNodePath [file join / testChildWatch]
@@ -89,7 +91,8 @@ test children_watch_new_child {
     zk children $newNodePath -watch watch_cb
     
     set newChildPath [file join $newNodePath child0]
-    after idle [list after 0 [list zk create $newChildPath -value child]]
+    zk create $newChildPath -value child
+
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
     after cancel $afterID
@@ -111,7 +114,7 @@ test children_watch_child_deleted {
 
     zk children $newNodePath -watch watch_cb
     
-    after idle [list after 0 [list zk delete $newChildPath -1]]
+    zk delete $newChildPath -1
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
     after cancel $afterID
@@ -132,7 +135,7 @@ test children_watch_not_fired_get_data {
 
     zk children $newNodePath -watch watch_cb
     
-    after idle [list after 0 [list zk get $childNodePath -version gVersion]]
+    zk get $childNodePath -version gVersion
 
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
@@ -146,6 +149,8 @@ test children_watch_not_fired_get_data {
 
 test children_watch_not_fired_child_set_data {
     Ensure that a children watch is not fired when the data in a child is modified
+} -setup {
+    update
 } -body {
     set newNodePath [file join / testChildWatch]
     zk create $newNodePath -value childWatchTest
@@ -155,7 +160,7 @@ test children_watch_not_fired_child_set_data {
 
     zk children $newNodePath -watch watch_cb
     
-    after idle [list after 0 [list zk set $childNodePath newData -1]]
+    zk set $childNodePath newData -1
 
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
@@ -171,14 +176,16 @@ test children_watch_for_node_not_exists_then_created {
     Ensure that if a child watch is set on a node that does not exist and then
     that node is created that the watch does not fire when the node and a child
     are created
+} -setup {
+    update
 } -body {
     set newNodePath [file join / testChildNodeNotExists]
     zk children $newNodePath -watch watch_cb
 
     set newChildPath [file join $newNodePath newChild]
     
-    after idle [list after 0 [list zk create $newNodePath -value newData]]
-    after idle [list after 0 [list zk create $newChildPath -value newChild]]
+    zk create $newNodePath -value newData
+    zk create $newChildPath -value newChild
 
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
@@ -201,7 +208,7 @@ test exists_watch_create_node {
     set newNodePath [file join / testExistsWatch]
     zk exists $newNodePath -watch watch_cb
 
-    after idle [list after 0 [list zk create $newNodePath]]
+    zk create $newNodePath
 
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
@@ -220,7 +227,7 @@ test exists_watch_delete_node {
 
     zk exists $newNodePath -watch watch_cb
 
-    after idle [list after 0 [list zk delete $newNodePath -1]]
+    zk delete $newNodePath -1
 
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
@@ -237,7 +244,7 @@ test exists_watch_set_data {
     
     zk exists $newNodePath -watch watch_cb
 
-    after idle [list after 0 [list zk set $newNodePath newData -1]]
+    zk set $newNodePath newData -1
 
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
@@ -257,7 +264,7 @@ test exists_watch_not_fire_new_child {
     zk exists $newNodePath -watch watch_cb
 
     set newChildPath [file join $newNodePath child]
-    after idle [list after 0 [list zk create $newChildPath]] 
+    zk create $newChildPath
 
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
@@ -271,13 +278,14 @@ test exists_watch_not_fire_new_child {
 
 test exists_watch_not_fire_get_data {
     Ensure that an exists watch does not fire when getting data from the node
+} -setup {
+    update
 } -body {
     set newNodePath [file join / testExistsWatch]
     zk create $newNodePath -value existsWatch
     
     zk exists $newNodePath -watch watch_cb
-
-    after idle [list after 0 [list zk get $newNodePath -version gVersion]] 
+    zk get $newNodePath -version gVersion
 
     set afterID [after 1500 {set ::watchData {path / type timeout}}]
     vwait ::watchData
