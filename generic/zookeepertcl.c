@@ -1945,25 +1945,11 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	}
 
 	if (callbackObj == NULL) {
-		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
-		zsc->zo = zo;
-		zsc->syncDone = 0;
-		status = zoo_adelete (zh, path, version, zootcl_sync_void_completion_callback, zsc);
+		// synchronous delete
+		status = zoo_delete(zh, path, version);
 		if (status != ZOK) {
-			ckfree (zsc);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
-
-		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
-			ckfree (zsc);
-			return TCL_ERROR;
-		}
-		status = zsc->rc;
-		if (status != ZOK) {
-			ckfree (zsc);
-			return zootcl_set_tcl_return_code (interp, status);
-		}
-		ckfree (zsc);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
