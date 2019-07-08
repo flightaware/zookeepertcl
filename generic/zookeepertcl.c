@@ -1487,8 +1487,8 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
 	// if asyncCallbackObj is null, do the synchronous version
 	if (asyncCallbackObj == NULL) {
-		char buffer[512];
-		int bufferLen = 512;
+		int bufferLen = 1048576;
+		char buffer[bufferLen];
 		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
 
 		status = zoo_wget(zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);	
