@@ -1292,28 +1292,8 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	int status;
 
 	if (asyncCallbackObj == NULL) {
-		// synchronous request
-		// invoke the special async handler for sync requests
-		// so the event loop will still be alive
-		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
-		zsc->zo = zo;
-		zsc->syncDone = 0;
-		status = zoo_awexists (zh, path, wfn, (void *)watcherCallbackObj, zootcl_sync_stat_completion_callback, zsc);
-		// handle errors from the call like bad arguments and stuff
-		if (status != ZOK) {
-			ckfree (zsc);
-			return zootcl_set_tcl_return_code (interp, status);
-		}
-
-		// wait with the tcl loop alive until the sync callback sets
-		// the syncDone flag in the sync callback context asc
-		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
-			return TCL_ERROR;
-		}
-
-		// ok, we got our zsc filled up, if the status isn't OK,
-		// error out
-		status = zsc->rc;
+		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
+		status = zoo_wexists(zh, path, wfn, (void *)watcherCallbackObj, stat);	
 
 		// if there's no node hand that according to our rule.
 		// unset the version var since we don't have one and we
@@ -1325,14 +1305,13 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
 			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
-			ckfree (zsc);
+			ckfree (stat);
 			return TCL_OK;
 		}
 
-		// ok anything other than ZOK is now an error (ZNONODE we
-		// handled specially, above.)
+		// handle errors from the call like bad arguments and stuff
 		if (status != ZOK) {
-			ckfree (zsc);
+			ckfree (stat);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
@@ -1341,20 +1320,20 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 
 		// if the caller wanted a stat array, we're good here,
 		// fill that.
-		if (statArray != NULL && zootcl_stat_to_array (interp, statArray, &zsc->stat) == TCL_ERROR) {
-			ckfree (zsc);
+		if (statArray != NULL && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+			ckfree (stat);
 			return TCL_ERROR;
 		}
 
 		// we want version so commonly and not much else in the stat array
 		// so we have a -version option to make it easy
 		if (versionVarObj != NULL) {
-			if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (zsc->stat.version), TCL_LEAVE_ERR_MSG) == NULL) {
-				ckfree (zsc);
+			if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (stat->version), TCL_LEAVE_ERR_MSG) == NULL) {
+				ckfree (stat);
 				return TCL_ERROR;
 			}
 		}
-		ckfree (zsc);
+		ckfree (stat);
 	} else {
 		// do the asynchronous version of znode existence check
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
@@ -1508,21 +1487,12 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
 	// if asyncCallbackObj is null, do the synchronous version
 	if (asyncCallbackObj == NULL) {
-		// synchronous get
-		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
-		zsc->zo = zo;
-		zsc->syncDone = 0;
-		status = zoo_awget (zh, path, wfn, (void *)watcherCallbackObj, zootcl_sync_data_completion_callback, zsc);
-		if (status != ZOK) {
-			ckfree (zsc);
-			return zootcl_set_tcl_return_code (interp, status);
-		}
-		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
-			ckfree (zsc);
-			return TCL_ERROR;
-		}
-		status = zsc->rc;
-		
+		char buffer[512];
+		int bufferLen = 512;
+		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
+
+		status = zoo_wget(zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);	
+
 		// if the node does not exist and -data was specified
 		// unset the var: do the same if a -version var was
 		// also specified and, finally, return 0
@@ -1532,20 +1502,20 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
 			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
-			ckfree (zsc);
+			ckfree (stat);
 			return TCL_OK;
 		}
 
 		if (status != ZOK) {
-			ckfree (zsc);
+			ckfree (stat);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
 		if (dataVarObj == NULL) {
-			if (zsc->dataObj != NULL) {
-				Tcl_SetObjResult (interp, zsc->dataObj);
+			if (bufferLen != -1) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj(buffer, bufferLen));
 			}
-		} else if (zsc->dataObj == NULL) { 
+		} else if (bufferLen == -1) {
 			// if the node does exist, but the data in the znode is NULL
 			// unset the var name specified by -data
 			Tcl_UnsetVar(interp, Tcl_GetString(dataVarObj), 0);
@@ -1553,25 +1523,25 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			// Need to set a boolean result to return to the caller
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
 		} else {
-			if (Tcl_SetVar2Ex (interp, Tcl_GetString (dataVarObj), NULL, zsc->dataObj, TCL_LEAVE_ERR_MSG) == NULL) {
-				ckfree (zsc);
+			if (Tcl_SetVar2Ex (interp, Tcl_GetString (dataVarObj), NULL, Tcl_NewStringObj(buffer, bufferLen), TCL_LEAVE_ERR_MSG) == NULL) {
+				ckfree (stat);
 				return TCL_ERROR;
 			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
 		}
 
-		if (zootcl_stat_to_array (interp, statArray, &zsc->stat) == TCL_ERROR) {
-			ckfree (zsc);
+		if (zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+			ckfree (stat);
 			return TCL_ERROR;
 		}
 
 		if (versionVarObj != NULL) {
-			if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (zsc->stat.version), TCL_LEAVE_ERR_MSG) == NULL) {
-				ckfree (zsc);
+			if (Tcl_SetVar2Ex (interp, Tcl_GetString (versionVarObj), NULL, Tcl_NewIntObj (stat->version), TCL_LEAVE_ERR_MSG) == NULL) {
+				ckfree (stat);
 				return TCL_ERROR;
 			}
 		}
-		ckfree (zsc);
+		ckfree (stat);
 	} else {
 		// do the asynchronous version
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
