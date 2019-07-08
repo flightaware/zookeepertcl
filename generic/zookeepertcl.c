@@ -397,7 +397,6 @@ zootcl_strings_completion_callback (int rc, const struct String_vector *strings,
 {
 	zootcl_callbackEvent *evPtr;
 	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
-	int i;
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
 	evPtr->event.proc = zootcl_EventProc;
@@ -405,7 +404,7 @@ zootcl_strings_completion_callback (int rc, const struct String_vector *strings,
 	evPtr->callbackType = STRING_CALLBACK;
 	evPtr->commandObj = ztc->callbackObj;
 	evPtr->data.rc = rc;
-    evPtr->zo = ztc->zo;
+    	evPtr->zo = ztc->zo;
 	ckfree(ztc);
 
 	// marshall the zookeeper strings into Tcl string objects
@@ -413,6 +412,7 @@ zootcl_strings_completion_callback (int rc, const struct String_vector *strings,
         int count = strings ? strings->count : 0;
 	Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
 
+	int i;
 	for (i = 0; i < count; i++) {
 		listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
 	}
@@ -1638,25 +1638,28 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 
 
 	if (callbackObj == NULL) {
-		// synchronous request
-		// invoke the special async handler for sync requests
-		// so the event loop will still be alive
-		zootcl_syncCallbackContext *zsc = (zootcl_syncCallbackContext *)ckalloc (sizeof (zootcl_syncCallbackContext));
-		zsc->zo = zo;
-		zsc->syncDone = 0;
-		status = zoo_awget_children (zh, path, wfn, watcherCallbackObj, zootcl_sync_strings_completion_callback, zsc);
-		if (zootcl_wait (zo, zsc) == TCL_ERROR) {
-			ckfree (zsc);
-			return TCL_ERROR;
-		}
+		struct String_vector *strings = (struct String_vector *)ckalloc (sizeof (struct String_vector));
+		status = zoo_wget_children(zh, path, wfn, (void *)watcherCallbackObj, strings);	
 
-		if (status != ZOK) {
-			ckfree (zsc);
+		if (status != ZOK && status != ZNONODE) {
+			ckfree (strings);
 			return zootcl_set_tcl_return_code (interp, status);
+		} else {
+			// do not consider a non-existent path to be an error in this case
+			status = ZOK;
+		}
+		
+		int count = strings ? strings->count : 0;
+		Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
+
+		for (i = 0; i < count; i++) {
+			listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
 		}
 
-		Tcl_SetObjResult (interp, zsc->dataObj);
-		ckfree (zsc);
+		Tcl_Obj *listObj = Tcl_NewListObj (count, listObjv);
+		
+		Tcl_SetObjResult (interp, listObj);
+		ckfree (strings);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
