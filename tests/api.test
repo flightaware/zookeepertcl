@@ -489,8 +489,41 @@ test set_async_version_wrong {
     zk delete $path -1
 } -result ZBADVERSION 
 
+test set_sync_verify_version_changes {
+    Ensure that the version of a znode changes when its data changes (sync version)
+} -body {
+    set setPath [file join $::params(zkTestRoot) setSyncVersion]
+    zk create $setPath
+    zk get $setPath -version nodeVersionStart
+
+    zk set $setPath newData $nodeVersionStart
+    zk get $setPath -version nodeVersionAfterSet
+
+    return [expr {$nodeVersionAfterSet > $nodeVersionStart}]
+} -cleanup {
+    zk delete $setPath $nodeVersionAfterSet
+} -result 1
+
+test set_async_verify_version_changes {
+    Ensure that the version of a znode changes when its data changes (async version)
+} -body {
+    set setPath [file join $::params(zkTestRoot) setAsyncVersion]
+    zk create $setPath
+    zk get $setPath -version nodeVersionStart
+
+    zk set $setPath newData $nodeVersionStart -async set_async
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::async {version -1}}]
+    vwait ::setAsync
+    after cancel $asyncTimeout
+
+    set nodeVersionAfterSet [dict get $::setAsync version]
+    return [expr {$nodeVersionAfterSet > $nodeVersionStart}]
+} -cleanup {
+    zk delete $setPath $nodeVersionAfterSet
+} -result 1
+
 test set_sync_madeup_znode {
-    try to set the data for a znode in sync mode whose path does not exist
+    Try to set the data for a znode in sync mode whose path does not exist
 } -body {
     catch {zk set [file join $::params(zkTestRoot) madeUp] data -1}
     puts $::errorCode
