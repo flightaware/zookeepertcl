@@ -13,13 +13,13 @@ test rmrf {
     zk create $rootPath -value root
 
     for {set i 0} {$i < 10} {incr i} {
-	set childLevel1 [file join $rootPath $i]
-	zk create $childLevel1
+        set childLevel1 [file join $rootPath $i]
+        zk create $childLevel1
 
-	for {set j 0} {$j < 10} {incr j} {
-	    set childLevel2 [file join $childLevel1 $j]
-	    zk create $childLevel2 
-	}
+        for {set j 0} {$j < 10} {incr j} {
+            set childLevel2 [file join $childLevel1 $j]
+            zk create $childLevel2 
+        }
     }
 
     zookeeper::rmrf zk $rootPath

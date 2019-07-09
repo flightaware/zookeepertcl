@@ -16,11 +16,27 @@ package require zookeeper
 proc connect_to_zookeeper {} {
     zookeeper::zookeeper debug_level $::params(zkDebugLevel)
     zookeeper::zookeeper init zk $::params(zkHostString) $::params(zkTimeout) -async init_callback
-    after $::params(zkTimeout) {set ::connected 0} 
+    after $::params(zkTimeout) {set ::connected 0}
     vwait ::connected
 
     if {!$::connected} {
 	puts stderr "Could not connect to $::params(zkHostString)"
+	exit 1
+    }
+
+    create_zk_test_root
+}
+
+proc create_zk_test_root {} {
+    try {
+	if {[zk exists $::params(zkTestRoot)]} {
+	    zookeeper::rmrf zk $::params(zkTestRoot)
+	}
+
+	zk create $::params(zkTestRoot)
+    } on error {result options} {
+	puts stderr "Could not create root znode for holding test data $::params(zkTestRoot): '$result'"
+	puts stderr $options
 	exit 1
     }
 }
@@ -40,8 +56,9 @@ proc main {argv} {
 	{zkDebugLevel.arg "none" "debug_level to set in the zookeepertcl library during the tests"}
 	{zkHostString.arg "localhost:2181" "Zookeeper connection string used for running tests"}
 	{zkSyncTimeout.arg 1500 "Async callback timeout to ensure async tests cannot hang indefinitely"}
+	{zkTestRoot.arg "/zktcl_test" "Root path for all unit test data"}
 	{zkTimeout.arg 3000 "Connection timeout in milliseconds"}
-    } 
+    }
 
     try {
 	array set ::params [::cmdline::getoptions argv $options $usage]
