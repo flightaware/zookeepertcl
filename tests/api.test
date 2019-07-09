@@ -39,6 +39,32 @@ proc delete_async {dDict} {
     set ::deleteAsync $dDict
 }
 
+proc stat_array_valid {_statArray} {
+    upvar $_statArray statArray
+
+    set statKeys {
+        aversion
+        ctime
+        cversion
+        czxid
+        dataLength
+        ephemeralOwner
+        mtime
+        mzxid
+        numChildren
+        pzxid
+        version
+    }
+
+    foreach statKey $statKeys {
+        if {![info exists statArray($statKey)]} {
+            return 0
+        }
+    }
+
+    return 1
+}
+
 #
 #
 # CREATE
@@ -179,7 +205,8 @@ test get_sync_normal {
     zk create $newNode -value getData
 
     set data [zk get $newNode -version gVersion] 
-    return [expr {$data eq "getData"}]
+    set data2 [zk get $newNode]
+    return [expr {$data eq "getData" && $data2 eq "getData"}]
 } -cleanup {
     zk delete $newNode $gVersion
 } -result 1
@@ -212,6 +239,37 @@ test get_data_flag_with_data {
 } -cleanup {
     zk delete $newNode $gVersion
 } -result 1
+
+test get_sync_stat_option_node_exists {
+    Test get's -stat option and make sure it contains all expected
+    values for a node that exists  
+} -setup {
+    array unset gStat
+} -body {
+    set nodePath [file join $::params(zkTestRoot) getStatOption]
+    zk create $nodePath
+
+    zk get $nodePath -stat gStat
+    return [stat_array_valid gStat]
+} -cleanup {
+    zk delete $nodePath $gStat(version)
+} -result 1
+
+test get_sync_stat_option_node_does_not_exist {
+    Test get's -stat option and make sure it does not set a stat
+    array for a node that does not exist
+} -setup {
+    array unset gStat
+} -body {
+    set nodePath [file join $::params(zkTestRoot) getStatOptionNoNode]
+    try {
+      zk get $nodePath -stat gStat
+    } on error {} {
+
+    } finally {
+      return [info exists gStat]
+    }
+} -result 0
 
 test get_data_flag_no_data {
     test get using the -data flag for a znode with no data
@@ -291,6 +349,36 @@ test exists_sync_version_option {
 } -cleanup {
     zk delete $eNodePath $eVersion
 } -result 1
+
+test exists_sync_stat_option_node_exists {
+    Test the -stat option to exists and make sure it agrees with
+    the data returned with the -version options and that it contains
+    all keys specified in the documentation for a node that exists
+} -setup {
+    array unset eStat
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) existsStat]
+    zk create $eNodePath
+
+    zk exists $eNodePath -stat eStat
+    zk exists $eNodePath -version eVersion
+
+    return [expr {[stat_array_valid eStat] && $eStat(version) == $eVersion}]
+} -cleanup {
+    zk delete $eNodePath $eVersion
+} -result 1
+
+test exists_sync_stat_option_node_does_not_exist {
+    Test the -stat option to exists for a node that does not exist and
+    make sure the array is empty
+} -setup {
+    array unset eStat
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) existsStatNoNode]
+
+    zk exists $eNodePath -stat eStat
+    return [info exists eStat]
+} -result 0
 
 test exists_deleted_node_sync {
     check for the existence of a node that does not exist in sync mode

@@ -24,7 +24,7 @@ test get_watch_data_changed {
     Ensure that a get watch fires when the data is changed
 } -body {
     set newNodeValue testingValueSync
-    set newNodePath [file join / testGetWatch]
+    set newNodePath [file join $::params(zkTestRoot) testGetWatch]
     zk create $newNodePath -value $newNodeValue
 
     zk get $newNodePath -watch watch_cb -version gVersion
@@ -34,16 +34,18 @@ test get_watch_data_changed {
     vwait ::watchData
     after cancel $afterID
 
-    return [list [dict get $::watchData path] [dict get $::watchData type]]
+    set pathEqual [expr {[dict get $::watchData path] eq $newNodePath}]
+    set typeEqual [expr {[dict get $::watchData type] eq "changed"}]
+    return [expr {$pathEqual && $typeEqual}]
 } -cleanup {
     zk delete $newNodePath -1
-} -result {/testGetWatch changed}
+} -result 1
 
 test get_watch_node_deleted {
     Ensure that a get watch fires when the node is deleted
 } -body {
     set newNodeValue testingValueSync
-    set newNodePath [file join / testGetWatch]
+    set newNodePath [file join $::params(zkTestRoot) testGetWatch]
     zk create $newNodePath -value $newNodeValue
 
     zk get $newNodePath -watch watch_cb -version gVersion
@@ -53,14 +55,16 @@ test get_watch_node_deleted {
     vwait ::watchData
     after cancel $afterID
 
-    return [list [dict get $::watchData path] [dict get $::watchData type]]
-} -result {/testGetWatch deleted} 
+    set pathEqual [expr {[dict get $::watchData path] eq $newNodePath}]
+    set typeEqual [expr {[dict get $::watchData type] eq "deleted"}]
+    return [expr {$pathEqual && $typeEqual}]
+} -result 1
 
 test get_watch_not_fired_get_data {
     Ensure that a get watch does not fire when the data from the node is retrieved
 } -body {
     set newNodeValue testingValueSync
-    set newNodePath [file join / testGetWatch]
+    set newNodePath [file join $::params(zkTestRoot) testGetWatch]
     zk create $newNodePath -value $newNodeValue
 
     zk get $newNodePath -watch watch_cb -version gVersion
@@ -86,7 +90,7 @@ test children_watch_new_child {
     update
 } -body {
     set newNodeValue testingValueSync
-    set newNodePath [file join / testChildWatch]
+    set newNodePath [file join $::params(zkTestRoot) testChildWatch]
     zk create $newNodePath -value $newNodeValue
     zk children $newNodePath -watch watch_cb
     
@@ -97,16 +101,18 @@ test children_watch_new_child {
     vwait ::watchData
     after cancel $afterID
 
-    return [list [dict get $::watchData path] [dict get $::watchData type]]
+    set pathEqual [expr {[dict get $::watchData path] eq $newNodePath}]
+    set typeEqual [expr {[dict get $::watchData type] eq "child"}]
+    return [expr {$pathEqual && $typeEqual}]
 } -cleanup {
     zk delete $newChildPath -1
     zk delete $newNodePath -1
-} -result {/testChildWatch child}
+} -result 1
 
 test children_watch_child_deleted {
     Ensure that a children watch is fired when a child is deleted
 } -body {
-    set newNodePath [file join / testChildWatch]
+    set newNodePath [file join $::params(zkTestRoot) testChildWatch]
     zk create $newNodePath -value childTest
 
     set newChildPath [file join $newNodePath child0]
@@ -119,15 +125,17 @@ test children_watch_child_deleted {
     vwait ::watchData
     after cancel $afterID
 
-    return [list [dict get $::watchData path] [dict get $::watchData type]]
+    set pathEqual [expr {[dict get $::watchData path] eq $newNodePath}]
+    set typeEqual [expr {[dict get $::watchData type] eq "child"}]
+    return [expr {$pathEqual && $typeEqual}]
 } -cleanup {
     zk delete $newNodePath -1
-} -result {/testChildWatch child}
+} -result 1
 
 test children_watch_not_fired_get_data {
     Ensure that a children watch is not fired when the data in a child is retrieved
 } -body {
-    set newNodePath [file join / testChildWatch]
+    set newNodePath [file join $::params(zkTestRoot) testChildWatch]
     zk create $newNodePath -value childWatchTest
 
     set childNodePath [file join $newNodePath child]
@@ -152,7 +160,7 @@ test children_watch_not_fired_child_set_data {
 } -setup {
     update
 } -body {
-    set newNodePath [file join / testChildWatch]
+    set newNodePath [file join $::params(zkTestRoot) testChildWatch]
     zk create $newNodePath -value childWatchTest
 
     set childNodePath [file join $newNodePath child]
@@ -179,7 +187,7 @@ test children_watch_for_node_not_exists_then_created {
 } -setup {
     update
 } -body {
-    set newNodePath [file join / testChildNodeNotExists]
+    set newNodePath [file join $::params(zkTestRoot) testChildNodeNotExists]
     zk children $newNodePath -watch watch_cb
 
     set newChildPath [file join $newNodePath newChild]
@@ -205,7 +213,7 @@ test children_watch_for_node_not_exists_then_created {
 test exists_watch_create_node {
     Ensure that an exists watch fires when the node is created
 } -body {
-    set newNodePath [file join / testExistsWatch]
+    set newNodePath [file join $::params(zkTestRoot) testExistsWatch]
     zk exists $newNodePath -watch watch_cb
 
     zk create $newNodePath
@@ -214,15 +222,17 @@ test exists_watch_create_node {
     vwait ::watchData
     after cancel $afterID
 
-    return [list [dict get $::watchData path] [dict get $::watchData type]]
+    set pathEqual [expr {[dict get $::watchData path] eq $newNodePath}]
+    set typeEqual [expr {[dict get $::watchData type] eq "created"}]
+    return [expr {$pathEqual && $typeEqual}]
 } -cleanup {
     zk delete $newNodePath -1
-} -result {/testExistsWatch created}
+} -result 1
 
 test exists_watch_delete_node {
     Ensure that an exists watch fires when the node is deleted
 } -body {
-    set newNodePath [file join / testExistsWatch]
+    set newNodePath [file join $::params(zkTestRoot) testExistsWatch]
     zk create $newNodePath -value existsWatch
 
     zk exists $newNodePath -watch watch_cb
@@ -233,8 +243,10 @@ test exists_watch_delete_node {
     vwait ::watchData
     after cancel $afterID
 
-    return [list [dict get $::watchData path] [dict get $::watchData type]]
-} -result {/testExistsWatch deleted}
+    set pathEqual [expr {[dict get $::watchData path] eq $newNodePath}]
+    set typeEqual [expr {[dict get $::watchData type] eq "deleted"}]
+    return [expr {$pathEqual && $typeEqual}]
+} -result 1
 
 test exists_watch_set_data {
     Ensure that an exists watch fires when setting data on the node
@@ -250,15 +262,17 @@ test exists_watch_set_data {
     vwait ::watchData
     after cancel $afterID
 
-    return [list [dict get $::watchData path] [dict get $::watchData type]]
+    set pathEqual [expr {[dict get $::watchData path] eq $newNodePath}]
+    set typeEqual [expr {[dict get $::watchData type] eq "changed"}]
+    return [expr {$pathEqual && $typeEqual}]
 } -cleanup {
     zk delete $newNodePath -1
-} -result {/testExistsWatch changed}
+} -result 1
 
 test exists_watch_not_fire_new_child {
     Ensure an exists watch does not fire when a new child node is created
 } -body {
-    set newNodePath [file join / testExistsWatch]
+    set newNodePath [file join $::params(zkTestRoot) testExistsWatch]
     zk create $newNodePath -value existsWatch
     
     zk exists $newNodePath -watch watch_cb
@@ -281,7 +295,7 @@ test exists_watch_not_fire_get_data {
 } -setup {
     update
 } -body {
-    set newNodePath [file join / testExistsWatch]
+    set newNodePath [file join $::params(zkTestRoot) testExistsWatch]
     zk create $newNodePath -value existsWatch
     
     zk exists $newNodePath -watch watch_cb
