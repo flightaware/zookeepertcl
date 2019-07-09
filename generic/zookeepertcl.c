@@ -1530,7 +1530,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (1));
 		}
 
-		if (zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
+		if (statArray && zootcl_stat_to_array (interp, statArray, stat) == TCL_ERROR) {
 			ckfree (stat);
 			return TCL_ERROR;
 		}
