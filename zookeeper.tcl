@@ -3,6 +3,9 @@
 #
 #
 
+package require base64
+package require sha1
+
 namespace eval ::zookeeper  {
 	variable zkwd "/"
 
@@ -64,7 +67,7 @@ namespace eval ::zookeeper  {
 
 		if {[$zk get $zpath -data zdata -version zversion]} {
 			# if it matches the file, leave it alone
-			if {$data == $zdata} {
+			if {[info exists zdata] && $data == $zdata} {
 				return
 			}
 		} else {
@@ -110,7 +113,7 @@ namespace eval ::zookeeper  {
 			set exists 0
 		}
 
-		if {![$zk get $zpath -data zdata -version zversion]} {
+		if {![$zk get $zpath -data zdata -version zversion] || ![info exists zdata]} {
 			# there is no data at the znode.  if there is a file,
 			# delete it.
 			if {$exists} {
@@ -160,10 +163,6 @@ namespace eval ::zookeeper  {
 		}
 	}
 
-	proc flatten_path {zpath} {
-		# take out .. and whatever preceded it and anchor to /
-	}
-
 	proc zls {{where ""}} {
 		variable zkwd
 
@@ -188,9 +187,16 @@ namespace eval ::zookeeper  {
 		return
 	}
 
-	proc zcat {{what ""}} {
-		variable zkwd
+	#
+	# zdigest_id - given a username and password for use with the digest
+	#  ACL scheme, return the id portion of the ACL, which is
+	#  username:[zdigest password]
+	#
+	proc zdigest_id {un pw} {
+		set digest [base64::encode [sha1::sha1 -bin "${un}:${pw}"]]
+		return [format {%s:%s} $un $digest]
 	}
+
 } ;# namespace ::zookeeper
 
 # vim: set ts=4 sw=4 sts=4 noet :

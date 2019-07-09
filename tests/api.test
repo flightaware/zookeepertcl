@@ -1,0 +1,610 @@
+##
+##
+## api.test - Test the following Zookeeper API commands:
+##  
+##  - CREATE
+##  - GET
+##  - EXISTS
+##  - CHILDREN
+##  - SET
+##  - DELETE
+##
+package require tcltest
+namespace import ::tcltest::*
+
+#
+# HELPER PROCS 
+#
+proc create_async {cDict} {
+    set ::createAsync $cDict
+}
+
+proc get_async {gDict} {
+    set ::getAsync $gDict
+}
+
+proc exists_async {eDict} {
+    set ::existsAsync $eDict
+}
+
+proc children_async {cDict} {
+    set ::childrenAsync $cDict
+}
+
+proc set_async {sDict} {
+    set ::setAsync $sDict
+}
+
+proc delete_async {dDict} {
+    set ::deleteAsync $dDict
+}
+
+#
+#
+# CREATE
+#
+#
+test create_sync {create a node and get its value} -body {
+    set newNodeValue testingValueSync
+    set newNodePath [file join $::params(zkTestRoot) testCreateSync]
+    zk create $newNodePath -value $newNodeValue
+
+    return [zk get $newNodePath -version nodeVersion]
+} -cleanup {
+    zk delete $newNodePath $nodeVersion
+} -result testingValueSync
+
+test create_sync_null_data {create a node with no data} -body {
+    set newNodeValue testingValueSync
+    set newNodePath [file join $::params(zkTestRoot) testCreateSyncNoData]
+    zk create $newNodePath
+
+    return [zk get $newNodePath -version nodeVersion]
+} -cleanup {
+    zk delete $newNodePath $nodeVersion
+} -result ""
+
+test create_async {create a node using async and get its value} -body {
+    set newNodeValue testingValueAsync
+    set newNodePath [file join $::params(zkTestRoot) testCreateAsync]
+    zk create $newNodePath -value $newNodeValue -async create_async
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::createAsync {status TIMEOUT}}]
+    vwait ::createAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::createAsync status]
+} -cleanup {
+    zk delete $newNodePath $nodeVersion
+} -result ZOK
+
+test create_node_twice_sync {
+    create a node and then try to create it again
+} -body {
+    set newNodeValue createDup
+    set newNodePath [file join $::params(zkTestRoot) createDup]
+    zk create $newNodePath -value $newNodeValue
+
+    # try it again even though it already exists
+    catch {zk create $newNodePath -value $newNodeValue} 
+    puts $::errorCode
+} -cleanup {
+    zk delete $newNodePath -1
+} -output "ZOOKEEPER ZNODEEXISTS {node exists}" -match regexp
+
+test create_node_twice_async {
+    create a node using async and then try to create it again
+} -body {
+    set newNodeValue createDup
+    set newNodePath [file join $::params(zkTestRoot) createDup]
+    zk create $newNodePath -value $newNodeValue
+
+    # try it again even though it already exists
+    zk create $newNodePath -value $newNodeValue -async create_async
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::createAsync {status TIMEOUT}}]
+    vwait ::createAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::createAsync status]
+} -cleanup {
+    zk delete $newNodePath -1
+} -result ZNODEEXISTS
+
+test create_ephemeral_node {
+    create an ephemeral node, disconnect and verify that it no longer exists
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) createEphem]
+    zk create $eNodePath -ephemeral
+
+    zk destroy
+    connect_to_zookeeper
+
+    return [zk exists $eNodePath]
+} -result 0
+
+test create_child_of_ephemeral_node {
+    try to illegally create a child for an ephemeral node
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) createEphemChild]
+    zk create $eNodePath -ephemeral
+
+    set eNodeChildPath [file join $eNodePath child]
+    catch {zk create $eNodeChildPath}
+    puts $::errorCode
+} -output ZNOCHILDRENFOREPHEMERALS -match regexp
+
+test create_sequential_node {
+    create a sequential node and verify that it has the right number of digits
+    which, according to the Zookeeper documentation, is 10, i.e., %010d
+} -body {
+    set sNodePath [file join $::params(zkTestRoot) createSeq_]
+    set sNodePath [zk create $sNodePath -sequence]
+    
+    set relativeName [lindex [file split $sNodePath] end]
+    set numPart [lindex [split $relativeName _] end]
+    return [string length $numPart]
+} -cleanup {
+    # create does not respect chroot when it is used
+    # so have to compensate for this by being explicit 
+    # in specifying the path of the node to delete
+    zk delete [file join $::params(zkTestRoot) $relativeName] -1
+} -result 10
+
+test create_numerous_sequential_nodes {
+    create many sequential nodes and verify that they only exhibit
+    monotonic sequence numbers
+} -body {
+    set sNodeBase [file join $::params(zkTestRoot) createSeqs_]
+    set seqNums [list]
+    for {set i 0} {$i < 10} {incr i} {
+        set sPath [zk create $sNodeBase -sequence -ephemeral]
+        set sPath [lindex [file split $sPath] end]
+        set seqNum [lindex [split $sPath _] end]
+        lappend seqNums [scan $seqNum %d]
+    }
+
+    return [expr {$seqNums eq [lsort -integer $seqNums]}]
+} -result 1
+
+#
+#
+# GET
+#
+#
+test get_sync_normal {
+    test get call in sync mode for node known to exist
+} -body {
+    set newNode [file join $::params(zkTestRoot) getNode]
+    zk create $newNode -value getData
+
+    set data [zk get $newNode -version gVersion] 
+    return [expr {$data eq "getData"}]
+} -cleanup {
+    zk delete $newNode $gVersion
+} -result 1
+
+test get_async_normal {
+    test get call in async mode for node known to exist
+} -body {
+    set newNode [file join $::params(zkTestRoot) getNode]
+    zk create $newNode -value getData
+
+    zk get $newNode -async get_async
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::getAsync {status TIMEOUT}}]
+    vwait ::getAsync
+    after cancel $asyncTimeout
+
+    return [expr {[dict get $::getAsync data] eq "getData"}]
+} -cleanup {
+    zk delete $newNode [dict get $::getAsync version]
+} -result 1
+
+test get_data_flag_with_data {
+    test get using the -data flag for a znode with data
+} -body {
+    set newNode [file join $::params(zkTestRoot) getNode]
+    zk create $newNode -value getData
+
+    set res [zk get $newNode -version gVersion -data gData]
+    return [expr {$res && $gData eq "getData"}]
+} -cleanup {
+    zk delete $newNode $gVersion
+} -result 1
+
+test get_data_flag_no_data {
+    test get using the -data flag for a znode with no data
+} -body {
+    set newNode [file join $::params(zkTestRoot) getNode]
+    zk create $newNode 
+
+    set res [zk get $newNode -version gVersion -data gData]
+    return [expr {$res && ![info exists gData]}]
+} -cleanup {
+    zk delete $newNode $gVersion
+} -result 1
+
+test get_sync_znode_madeup {
+    test get in sync mode for a znode whose path does not exist 
+} -body {
+    catch {zk get [file join $::params(zkTestRoot) madeUp]}
+    puts $::errorCode
+} -output ZNONODE -match regexp
+
+test get_async_znode_madeup {
+    test get in async mode for a znode whose path does not exist
+} -body {
+    zk get [file join $::params(zkTestRoot) madeUp] -async get_async
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::getAsync {status TIMEOUT}}]
+    vwait ::getAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::getAsync status]
+} -result ZNONODE
+
+#
+#
+# EXISTS
+#
+#
+test exists_created_node_sync {
+    create a node and check for its existence in sync mode
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) createEphem]
+    zk create $eNodePath 
+
+    zk exists $eNodePath -version nodeVersion
+} -cleanup {
+    zk delete $eNodePath $nodeVersion
+} -result 1
+
+test exists_created_node_async {
+    create a node and check for its existence in async mode
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) createEphem]
+    zk create $eNodePath 
+
+    zk exists $eNodePath -async exists_async 
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::existsAsync {status TIMEOUT}}]
+    vwait ::existsAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::existsAsync status]
+} -cleanup {
+    zk delete $eNodePath [dict get $::existsAsync version]
+} -result ZOK
+
+test exists_sync_version_option {
+    test the -version option to exists and make sure it agrees
+    with the version returned by the get API call
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) existsVersion]
+    zk create $eNodePath
+
+    zk get $eNodePath -version gVersion
+    zk exists $eNodePath -version eVersion
+
+    return [expr {$gVersion == $eVersion}]
+} -cleanup {
+    zk delete $eNodePath $eVersion
+} -result 1
+
+test exists_deleted_node_sync {
+    check for the existence of a node that does not exist in sync mode
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) createEphem]
+    zk create $eNodePath 
+    zk delete $eNodePath -1
+
+    # test several invocations of exists
+    set e1 [zk exists $eNodePath -version nodeVersion]
+    set e2 [zk exists $eNodePath -stat statArray]
+    set e3 [zk exists $eNodePath]
+
+    # if any of them return 1, this should fail
+    return [expr {$e1 || $e2 || $e3}]
+} -result 0
+
+test exists_deleted_node_async {
+    check for the existence of a node that does not exist in async mode
+} -body {
+    set eNodePath [file join $::params(zkTestRoot) createEphem]
+    zk create $eNodePath 
+    zk delete $eNodePath -1
+
+    zk exists $eNodePath -async exists_async 
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::existsAsync {status TIMEOUT}}]
+    vwait ::existsAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::existsAsync status]
+} -result ZNONODE
+
+#
+#
+# CHILDREN
+#
+#
+test children_sync_normal {
+    create several children in sync mode and test for their existence
+} -body {
+    set parentPath [file join $::params(zkTestRoot) childrenSync]
+    zk create $parentPath
+
+    set children {0 1 2 3 4 5 6 7 8 9}
+    foreach child $children {
+	      zk create [file join $parentPath $child]	
+    }
+
+    set zkChildren [lsort -integer [zk children $parentPath]]
+    return [expr {$children eq $zkChildren}]
+} -cleanup {
+    foreach child $children {
+	      zk delete [file join $parentPath $child] -1
+    }
+    zk delete $parentPath -1
+} -result 1
+
+test children_async_normal {
+    create several children in async mode and test for their existence
+} -body {
+    set parentPath [file join $::params(zkTestRoot) childrenAsync]
+    zk create $parentPath
+
+    set children {0 1 2 3 4 5 6 7 8 9}
+    foreach child $children {
+	      zk create [file join $parentPath $child]	
+    }
+
+    zk children $parentPath -async children_async
+    
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::childrenAsync {data TIMEOUT}}]
+    vwait ::childrenAsync
+    after cancel $asyncTimeout
+
+    set zkChildren [dict get $::childrenAsync data]
+    return [expr {[lsort -integer $zkChildren] eq $children}]
+} -cleanup {
+    foreach child $children {
+	      zk delete [file join $parentPath $child] -1
+    }
+    zk delete $parentPath -1
+} -result 1
+
+test children_sync_no_children {
+    check for children in sync mode on a znode that has no children
+} -body {
+    set noChildrenPath [file join $::params(zkTestRoot) noChildren]
+    zk create $noChildrenPath
+
+    set children [zk children $noChildrenPath]
+    return [expr {$children eq {}}]     
+} -cleanup {
+    zk delete $noChildrenPath -1
+} -result 1
+
+test children_async_no_children {
+    check for children in async mode on a znode that has no children
+} -body {
+    set noChildrenPath [file join $::params(zkTestRoot) noChildren]
+    zk create $noChildrenPath
+
+    zk children $noChildrenPath -async children_async
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::childrenAsync {data TIMEOUT}}]
+    vwait ::childrenAsync
+    after cancel $asyncTimeout
+
+    return [expr {[dict get $::childrenAsync data] eq {}}]
+} -cleanup {
+    zk delete $noChildrenPath -1
+} -result 1
+
+test children_sync_znode_not_exists {
+    try to get a list of children for a znode that does not exist
+} -body {
+    return [zk children [file join $::params(zkTestRoot) doesNotExist]]
+} -result {}
+
+test children_async_znode_not_exists {
+    zk children [file join $::params(zkTestRoot) doesNotExist] -async children_async
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::childrenAsync {data TIMEOUT}}]
+    vwait ::childrenAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::childrenAsync data]
+} -result {}
+
+#
+#
+# SET
+#
+#
+test set_sync_normal {
+    set the data for a znode in sync mode
+} -body {
+    set path [file join $::params(zkTestRoot) setSyncNormal]
+    zk create $path -value start
+    set beforeSet [zk get $path -version startVersion]
+
+    zk set $path end $startVersion
+    set afterSet [zk get $path -version endVersion]
+
+    return [expr {$beforeSet eq "start" && $afterSet eq "end" && $endVersion > $startVersion}]
+} -cleanup {
+    zk delete $path $endVersion
+} -result 1
+
+test set_async_normal {
+    set the data for a znode in async mode
+} -body {
+    set path [file join $::params(zkTestRoot) setSyncNormal]
+    zk create $path -value start
+    set beforeSet [zk get $path -version startVersion]
+
+    zk set $path end $startVersion -async set_async 
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::setAsync {status TIMEOUT}}]
+    vwait ::setAsync
+    after cancel $asyncTimeout
+
+    set asyncSetVersion [dict get $::setAsync version]
+    set afterSet [zk get $path -version endVersion]
+    return [expr {$beforeSet eq "start" && $afterSet eq "end" && \
+		  $asyncSetVersion == $endVersion && $endVersion > $startVersion}]
+} -cleanup {
+    zk delete $path $endVersion
+} -result 1
+
+test set_sync_version_wrong {
+    try to set the data for a znode in sync mode with a bad version number
+} -body {
+    set path [file join $::params(zkTestRoot) setSyncNormal]
+    zk create $path -value start
+    set beforeSet [zk get $path -version startVersion]
+
+    catch {zk set $path end [expr {$startVersion + 1}]}
+    puts $::errorCode
+} -cleanup {
+    zk delete $path -1
+} -output ZBADVERSION -match regexp
+
+test set_async_version_wrong {
+    try to set the data for a znode in async mode with a bad version number
+} -body {
+    set path [file join $::params(zkTestRoot) setSyncNormal]
+    zk create $path -value start
+    set beforeSet [zk get $path -version startVersion]
+
+    zk set $path end [expr {$startVersion + 1}] -async set_async
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::setAsync {status TIMEOUT}}]
+    vwait ::setAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::setAsync status]
+} -cleanup {
+    zk delete $path -1
+} -result ZBADVERSION 
+
+test set_sync_madeup_znode {
+    try to set the data for a znode in sync mode whose path does not exist
+} -body {
+    catch {zk set [file join $::params(zkTestRoot) madeUp] data -1}
+    puts $::errorCode
+} -output ZNONODE -match regexp
+
+test set_async_madeup_znode {
+    try to set the data for a znode in async mode whose path does not exist
+} -body {
+
+    zk set [file join $::params(zkTestRoot) madeUp] data -1 -async set_async
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::setAsync {status TIMEOUT}}]
+    vwait ::setAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::setAsync status]
+} -result ZNONODE
+
+#
+#
+# DELETE
+#
+#
+test delete_sync_normal {
+    delete a znode in sync mode
+} -body {
+    set newNode [file join $::params(zkTestRoot) deleteThis]
+    zk create $newNode
+
+    zk delete $newNode -1
+    set deleteNoVersion [expr {![zk exists $newNode]}]
+
+    zk create $newNode
+    zk get $newNode -version dVersion
+    zk delete $newNode $dVersion
+    set deleteVersion [expr {![zk exists $newNode]}]
+
+    return [expr {$deleteNoVersion && $deleteVersion}]
+} -result 1
+
+test delete_async_normal {
+    delete a znode in async mode
+} -body {
+    set newNode [file join $::params(zkTestRoot) deleteThis]
+
+    zk create $newNode
+    zk delete $newNode -1 -async delete_async
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::deleteAsync {status TIMEOUT}}]
+    vwait ::deleteAsync
+    after cancel $asyncTimeout
+    set deleteNoVersion [expr {![zk exists $newNode]}]
+
+    zk create $newNode
+    zk get $newNode -version dVersion
+    zk delete $newNode $dVersion -async delete_async
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::deleteAsync {status TIMEOUT}}]
+    vwait ::deleteAsync
+    after cancel $asyncTimeout
+    set deleteVersion [expr {![zk exists $newNode]}]
+
+    return [expr {$deleteNoVersion && $deleteVersion}]
+} -result 1
+
+test delete_sync_version_wrong {
+    try to delete a znode in sync mode with an incorrect version
+} -body {
+    set newNode [file join $::params(zkTestRoot) deleteThis]
+    zk create $newNode
+    zk get $newNode -version dVersion
+
+    catch {zk delete $newNode [expr {$dVersion + 1}]}
+    puts $::errorCode
+} -cleanup {
+    zk delete $newNode $dVersion
+} -output ZBADVERSION -match regexp
+
+test delete_async_version_wrong {
+    try to delete a znode in async mode with an incorrect version
+} -body {
+
+    set newNode [file join $::params(zkTestRoot) deleteThis]
+    zk create $newNode
+    zk get $newNode -version dVersion
+
+    zk delete $newNode [expr {$dVersion + 1}] -async delete_async
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::deleteAsync {status TIMEOUT}}]
+    vwait ::deleteAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::deleteAsync status]
+} -cleanup {
+    zk delete $newNode $dVersion
+} -result ZBADVERSION 
+
+test delete_sync_madeup_znode {
+    try to delete a znode in sync mode whose path does not exist
+} -body {
+    catch {zk delete [file join $::params(zkTestRoot) madeUp] -1}
+    puts $::errorCode
+} -output ZNONODE -match regexp
+
+test delete_async_madeup_znode {
+    try to delete a znode in async mode whose path does not exist
+} -body {
+    zk delete [file join $::params(zkTestRoot) madeUp] -1 -async delete_async
+
+    set asyncTimeout [after $::params(zkSyncTimeout) {set ::deleteAsync {status TIMEOUT}}]
+    vwait ::deleteAsync
+    after cancel $asyncTimeout
+
+    return [dict get $::deleteAsync status]
+} -result ZNONODE
+
+cleanupTests
+
+# vim: set ts=8 sw=4 sts=4 noet :
