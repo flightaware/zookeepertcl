@@ -3,7 +3,7 @@
 /*
  * zootcl - Tcl interface to Apache Zookeeper
  *
- * Copyright (C) 2016 - 2018 FlightAware LLC
+ * Copyright (C) 2016 - 2019 FlightAware LLC
  *
  * freely redistributable under the Berkeley license
  */
