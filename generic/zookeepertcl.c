@@ -404,7 +404,7 @@ zootcl_strings_completion_callback (int rc, const struct String_vector *strings,
 	evPtr->callbackType = STRING_CALLBACK;
 	evPtr->commandObj = ztc->callbackObj;
 	evPtr->data.rc = rc;
-    	evPtr->zo = ztc->zo;
+ 	evPtr->zo = ztc->zo;
 	ckfree(ztc);
 
 	// marshall the zookeeper strings into Tcl string objects
@@ -1114,61 +1114,6 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 
 	zookeeper_close (zo->zh);
     ckfree((char *)clientData);
-}
-
-/*
- *--------------------------------------------------------------
- *
- * zootcl_wait -- routine to make sync-like zookeeper functions
- *   wait while keeping the event loop alive.
- *
- * this code was derived from Tcl_VwaitObjCmd in the Tcl core
- *
- * it processes events until zsc->syncDone is true.
- * zsc->syncDone is set by the callback routine such as
- * zootcl_stat_sync_completion_callback.
- *
- *--------------------------------------------------------------
- */
-int
-zootcl_wait (zootcl_objectClientData *zo, zootcl_syncCallbackContext *zsc)
-{
-    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
-	Tcl_Interp *interp = zo->interp;
-	int foundEvent = 1;
-
-    while (!zsc->syncDone && foundEvent) {
-		foundEvent = Tcl_DoOneEvent(TCL_ALL_EVENTS);
-
-		if (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {
-			break;
-		}
-
-		if (Tcl_LimitExceeded(interp)) {
-			Tcl_ResetResult(interp);
-			Tcl_SetObjResult(interp, Tcl_NewStringObj("limit exceeded", -1));
-			break;
-		}
-    }
-
-	if (!foundEvent) {
-		Tcl_ResetResult(interp);
-		Tcl_SetObjResult(interp, Tcl_NewStringObj("can't wait for zookeeper event: would wait forever", -1));
-		Tcl_SetErrorCode(interp, "TCL", "EVENT", "NO_SOURCES", NULL);
-		return TCL_ERROR;
-	}
-
-    if (!zsc->syncDone) {
-		return TCL_ERROR;
-    }
-
-    /*
-     * Clear out the interpreter's result, since it may have been set by event
-     * handlers.
-     */
-
-    Tcl_ResetResult(interp);
-    return TCL_OK;
 }
 
 /*
