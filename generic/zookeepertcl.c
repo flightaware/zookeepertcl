@@ -1889,9 +1889,6 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	if (callbackObj == NULL) {
 		// synchronous delete
 		status = zoo_delete(zh, path, version);
-		if (status != ZOK) {
-			return zootcl_set_tcl_return_code (interp, status);
-		}
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
