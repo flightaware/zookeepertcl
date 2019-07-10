@@ -10,10 +10,14 @@ Functionality
 
 - Provides a natural Tcl interface
 - Fast
-- Synchronous interface for simplicity and convenience
+- Synchronous interface for simplicity and convenience (See note)
 - Asynchronous interface for performance
 - Thread safe
 - Free!
+
+Note: prior to v1.1.0 the synchronous interface maintained the Tcl event loop. This has led to problems and hard to find bugs, and
+now the Tcl event loop is blocked while communicating with the server using the non-async API. This should have minimal impact, but some
+programs may need to change to the asynchronous API.
 
 License
 ---
@@ -49,6 +53,10 @@ package require zookeeper
 
 Versions
 ---
+
+v1.0.0 -- initial release.
+
+v1.1.0 -- change to synchronous Zookeeper API for synchronous calls.
 
 
 Overview
