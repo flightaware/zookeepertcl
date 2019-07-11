@@ -1921,6 +1921,14 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 int
 zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
+    // Remove the command exit handler and delete the command
+	Tcl_CmdInfo *infoPtr = (Tcl_CmdInfo *) ckalloc (sizeof (Tcl_CmdInfo));
+	infoPtr->deleteProc = NULL;
+	Tcl_SetCommandInfoFromToken(zo->cmdToken, infoPtr);
+	ckfree(infoPtr);
+	Tcl_DeleteCommandFromToken(interp, zo->cmdToken);
+
+    // Call the object deletion function and return
     zootcl_zookeeperObjectDelete ((ClientData)zo);
     return TCL_OK;
 }
