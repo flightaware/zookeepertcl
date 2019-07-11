@@ -13,9 +13,9 @@
 package require cmdline
 package require zookeeper
 
-proc connect_to_zookeeper {} {
+proc connect_to_zookeeper {{zkObjectName zk}} {
     zookeeper::zookeeper debug_level $::params(zkDebugLevel)
-    zookeeper::zookeeper init zk $::params(zkHostString) $::params(zkTimeout) -async init_callback
+    zookeeper::zookeeper init $zkObjectName $::params(zkHostString) $::params(zkTimeout) -async init_callback
     after $::params(zkTimeout) {set ::connected 0}
     vwait ::connected
 

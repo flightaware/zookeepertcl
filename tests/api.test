@@ -8,6 +8,7 @@
 ##  - CHILDREN
 ##  - SET
 ##  - DELETE
+##  - DESTROY
 ##
 package require tcltest
 namespace import ::tcltest::*
@@ -725,6 +726,56 @@ test delete_async_madeup_znode {
 
     return [dict get $::deleteAsync status]
 } -result ZNONODE
+
+#
+#
+# DESTROY
+#
+#
+test destroy_and_recreate_zookeeper_object {
+    Make sure calling destroy and then recreating the object multiple times
+    does not cause any errors
+} -body {
+    for {set i 0} {$i < 3} {incr i} {
+        zk destroy
+        connect_to_zookeeper
+    }
+    return [expr {[zk state] eq "connected"}]
+} -result 1
+
+test destroy_before_event_can_be_invoked_for_async_call {
+    Make an async call on the Zookeeper object and then delete immediately
+    before the event has the chance to fire
+} -body {
+    zk get $::params(zkTestRoot) -async get_async
+    zk set $::params(zkTestRoot) test -1 -async get_async
+    zk exists $::params(zkTestRoot) -async get_async
+    zk destroy
+
+    set getTimeout [after $::params(zkSyncTimeout) {set ::getAsync ""}]
+    vwait ::getAsync
+    after cancel $getTimeout
+
+    connect_to_zookeeper 
+
+    return $::getAsync
+} -result ""
+
+test destroy_should_not_affect_after_events_not_related_to_it {
+    When destroy is called, all events for the object should be deleted but
+    after events created by anything else should not be deleted
+} -body {
+    zk get $::params(zkTestRoot) -async get_async
+    set getTimeout [after $::params(zkSyncTimeout) {set ::getAsync ""}]
+
+    # when an after event does not exist, after info throws an errror
+    after info $getTimeout
+    after cancel $getTimeout
+
+    return 1
+} -cleanup {
+    connect_to_zookeeper
+} -result 1
 
 cleanupTests
 
