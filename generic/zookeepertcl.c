@@ -1100,7 +1100,7 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
  */
 int zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData) {
 	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;    
-	return !zo || zo->zookeeper_object_magic == -1;
+	return zo && zo->zookeeper_object_magic != ZOOKEEPER_OBJECT_MAGIC;
 }
 
 /*
@@ -1138,9 +1138,9 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
     	zo->zookeeper_object_magic = -1;
 
 	zookeeper_close (zo->zh);
-    	ckfree((char *)clientData);
+	Tcl_DeleteEvents (zootcl_DeleteEventsForDeletedObject, clientData);
 
-	Tcl_DeleteEvents(zootcl_DeleteEventsForDeletedObject, clientData);
+    	ckfree((char *)clientData);
 }
 
 /*
