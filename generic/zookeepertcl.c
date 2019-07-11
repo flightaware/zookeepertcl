@@ -412,7 +412,7 @@ zootcl_strings_completion_callback (int rc, const struct String_vector *strings,
 
 	// marshall the zookeeper strings into Tcl string objects
 	// and make a Tcl list object of them
-        int count = strings ? strings->count : 0;
+    int count = strings ? strings->count : 0;
 	Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
 
 	int i;
@@ -1624,18 +1624,17 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 			strings->count = 0;
 		}
 		
-		int count = strings ? strings->count : 0;
-        if (count > 0) {
-            Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
+        if (strings->count > 0) {
+            Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * strings->count);
 
-            for (i = 0; i < count; i++) {
+            for (i = 0; i < strings->count; i++) {
                 listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
             }
 
-            Tcl_Obj *listObj = Tcl_NewListObj (count, listObjv);
+            Tcl_Obj *listObj = Tcl_NewListObj (strings->count, listObjv);
 		    Tcl_SetObjResult (interp, listObj);
         } else {
-            Tcl_SetObjResult (interp, Tcl_NewListObj (count, NULL));    
+            Tcl_SetObjResult (interp, Tcl_NewListObj (0, NULL));    
         }
 
 		ckfree (strings);
