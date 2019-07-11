@@ -1921,29 +1921,8 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 int
 zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
-	// Close Zookeeper
-	zookeeper_close(zo->zh);
-	zo->zh = NULL;
-
-	// Remove the command exit handler and delete the command
-	Tcl_CmdInfo *infoPtr = (Tcl_CmdInfo *) ckalloc (sizeof (Tcl_CmdInfo));
-	infoPtr->deleteProc = NULL;
-	Tcl_SetCommandInfoFromToken(zo->cmdToken, infoPtr);
-	ckfree(infoPtr);
-	Tcl_DeleteCommandFromToken(interp, zo->cmdToken);
-
-	// Get rid of all event handlers and event sources
-	Tcl_DeleteExitHandler(zootcl_zookeeperObjectDelete, (ClientData)zo);
-	Tcl_DeleteThreadExitHandler(zootcl_zookeeperObjectDelete, (ClientData)zo);
-	if (zo->channel != NULL) {
-		Tcl_DeleteChannelHandler(zo->channel, zootcl_socket_ready, (ClientData)zo);
-		Tcl_DetachChannel(zo->interp, zo->channel);
-	}
-	Tcl_DeleteEventSource(zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData)zo);
-
-	// Free memory and get outta here
-	ckfree(zo);
-	return TCL_OK;
+    zootcl_zookeeperObjectDelete ((ClientData)zo);
+    return TCL_OK;
 }
 
 /*
