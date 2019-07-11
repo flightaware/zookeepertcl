@@ -20,6 +20,9 @@
 int
 zootcl_EventProc (Tcl_Event *tevPtr, int flags);
 
+int 
+zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData);
+
 /*
  *--------------------------------------------------------------
  *
@@ -1081,6 +1084,28 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 /*
  *--------------------------------------------------------------
  *
+ * zootcl_DeleteEventsForDeletedObject - delete any events where the
+ *  underlying zookeepertcl object has been deleted
+ *  this can happen, e.g., if an -async option is used and then
+ *  the zookeepertcl object is destroyed before the event has a
+ *  chance to fire
+ *
+ * Results:
+ *      ...avoids invoking callbacks for deleted zookeepertcl objects
+ *
+ * Side effects:
+ *      None.
+ *
+ *--------------------------------------------------------------
+ */
+int zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData) {
+	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;    
+	return !zo || zo->zookeeper_object_magic == -1;
+}
+
+/*
+ *--------------------------------------------------------------
+ *
  * zootcl_zookeeperObjectDelete -- command deletion callback routine.
  *
  * Results:
@@ -1095,9 +1120,9 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 void
 zootcl_zookeeperObjectDelete (ClientData clientData)
 {
-    zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
+	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
 
-    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+	assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
 	Tcl_DeleteExitHandler (zootcl_zookeeperObjectDelete, clientData);
 	Tcl_DeleteThreadExitHandler (zootcl_zookeeperObjectDelete, clientData);
@@ -1110,10 +1135,12 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 	// we are freeing memory in a sec, clear the magic number
 	// so attempt to reuse a freed object will be an assertion
 	// failure
-    zo->zookeeper_object_magic = -1;
+    	zo->zookeeper_object_magic = -1;
 
 	zookeeper_close (zo->zh);
-    ckfree((char *)clientData);
+    	ckfree((char *)clientData);
+
+	Tcl_DeleteEvents(zootcl_DeleteEventsForDeletedObject, clientData);
 }
 
 /*
@@ -1922,11 +1949,11 @@ int
 zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
     // Remove the command exit handler and delete the command
-	Tcl_CmdInfo *infoPtr = (Tcl_CmdInfo *) ckalloc (sizeof (Tcl_CmdInfo));
-	infoPtr->deleteProc = NULL;
-	Tcl_SetCommandInfoFromToken(zo->cmdToken, infoPtr);
-	ckfree(infoPtr);
-	Tcl_DeleteCommandFromToken(interp, zo->cmdToken);
+    Tcl_CmdInfo *infoPtr = (Tcl_CmdInfo *) ckalloc (sizeof (Tcl_CmdInfo));
+    infoPtr->deleteProc = NULL;
+    Tcl_SetCommandInfoFromToken(zo->cmdToken, infoPtr);
+    ckfree(infoPtr);
+    Tcl_DeleteCommandFromToken(interp, zo->cmdToken);
 
     // Call the object deletion function and return
     zootcl_zookeeperObjectDelete ((ClientData)zo);
