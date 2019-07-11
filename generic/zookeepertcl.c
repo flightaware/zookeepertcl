@@ -1084,9 +1084,10 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 /*
  *--------------------------------------------------------------
  *
- * zootcl_DeleteEventsForDeletedObject - delete any events where the
- *  underlying zookeepertcl object has been deleted
- *  this can happen, e.g., if an -async option is used and then
+ * zootcl_DeleteEventsForDeletedObject - let Tcl_DeleteEvents know
+ *  it needs to delete any events where the underlying
+ *  zookeepertcl object has been deleted.
+ *  This can happen, e.g., if an -async option is used and then
  *  the zookeepertcl object is destroyed before the event has a
  *  chance to fire
  *
