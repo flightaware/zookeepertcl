@@ -1598,15 +1598,19 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		}
 		
 		int count = strings ? strings->count : 0;
-		Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
+        if (count > 0) {
+            Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
 
-		for (i = 0; i < count; i++) {
-			listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
-		}
+            for (i = 0; i < count; i++) {
+                listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
+            }
 
-		Tcl_Obj *listObj = Tcl_NewListObj (count, listObjv);
-		
-		Tcl_SetObjResult (interp, listObj);
+            Tcl_Obj *listObj = Tcl_NewListObj (count, listObjv);
+		    Tcl_SetObjResult (interp, listObj);
+        } else {
+            Tcl_SetObjResult (interp, Tcl_NewListObj (count, NULL));    
+        }
+
 		ckfree (strings);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
