@@ -10,10 +10,14 @@ Functionality
 
 - Provides a natural Tcl interface
 - Fast
-- Synchronous interface for simplicity and convenience
+- Synchronous interface for simplicity and convenience (See note)
 - Asynchronous interface for performance
 - Thread safe
 - Free!
+
+Note: prior to v1.1.0 the synchronous interface maintained the Tcl event loop. This has led to problems and hard to find bugs, and
+now the Tcl event loop is blocked while communicating with the server using the non-async API. This should have minimal impact, but some
+programs may need to change to the asynchronous API.
 
 License
 ---
@@ -22,7 +26,7 @@ Open source under the permissive Berkeley copyright; see file [LICENSE](LICENSE)
 
 Requirements
 ---
-Requires the Apache Zookeeper C/C++ library [libzookeeper](https://zookeeper.apache.org/doc/trunk/zookeeperProgrammers.html) be installed.
+Requires the Apache Zookeeper C/C++ library [libzookeeper](https://zookeeper.apache.org/doc/current/zookeeperProgrammers.html) be installed.
 
 Building
 ---
@@ -50,9 +54,21 @@ package require zookeeper
 Versions
 ---
 
+v1.0.0 -- initial release.
+
+v1.1.0 -- change to synchronous Zookeeper API for synchronous calls.
+
 
 Overview
 ---
+
+```tcl
+package require zookeeper
+
+zookeeper::zookeeper debug_level debug
+```
+
+debug level can be debug, info, warn, error or none.
 
 `zookeeper::zookeeper version` returns the version of the C client, like **3.4.6**.  (The version of zookeeper Tcl can always be determined using `package require zookeeper` or one of various other Tcl package methods.)
 
@@ -118,7 +134,7 @@ Return 1 if the path exists and 0 if it doesn't.  **-watch**, **-stat** and **-v
 
 If **-async** is specified, the request is made asynchronously and *callback* is invoked with a Tcl list of key-value pairs as an argument when the answer arrives.
 
-Neither -stat or -version can be specified when -async is used.
+Neither -stat nor -version can be specified when -async is used.
 
 ```tcl
 zk children $path ?-async callback? ?-watch code?
@@ -168,7 +184,21 @@ zk is_unrecoverable
 
 Return true if the zookeeper C library says the connection state can't be recovered.
 
-If this returns true then the application must close the zhandle object and try to reconnect.
+If this returns true then the application must destroy the zookeeper object and reconnect.
+
+```tcl
+zk destroy
+```
+
+Destroys the Zookeeper object, disconnecting from Zookeeper and removing all watch or async callbacks in the process.
+
+Prior to v1.1.0 you must use `rename zk ""` instead.
+
+```tcl
+zk close
+```
+
+Alias for the `destroy` sub-command.
 
 ```tcl
 zookeeper::zookeeper debug_level debug
