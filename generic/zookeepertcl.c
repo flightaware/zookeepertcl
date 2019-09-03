@@ -2180,7 +2180,7 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zo->currentFD = -1;
 	zo->initCallbackObj = callbackObj;
 
-	zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
+	zhandle_t *zh = zookeeper_init (hosts, callbackObj?zootcl_init_callback:NULL, timeout, NULL, zo, 0);
 
 	if (zh == NULL) {
 		Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
