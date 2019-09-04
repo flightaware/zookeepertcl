@@ -1100,8 +1100,9 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
  *--------------------------------------------------------------
  */
 int zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData) {
+	zootcl_callbackEvent *zevPtr = (zootcl_callbackEvent *)tevPtr;
 	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;    
-	return zo && zo->zookeeper_object_magic != ZOOKEEPER_OBJECT_MAGIC;
+	return zo && zevPtr->zo == zo;
 }
 
 /*
