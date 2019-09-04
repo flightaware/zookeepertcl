@@ -1133,12 +1133,15 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 	}
 	Tcl_DeleteEventSource (zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData) zo);
 
+	// In some rare cases the init callback for zo may be hanging here
+	// so call zookeeper_close before invalidating the object.
+	zookeeper_close (zo->zh);
+
 	// we are freeing memory in a sec, clear the magic number
 	// so attempt to reuse a freed object will be an assertion
 	// failure
     	zo->zookeeper_object_magic = -1;
 
-	zookeeper_close (zo->zh);
 	Tcl_DeleteEvents (zootcl_DeleteEventsForDeletedObject, clientData);
 
     	ckfree((char *)clientData);
@@ -2180,7 +2183,7 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zo->currentFD = -1;
 	zo->initCallbackObj = callbackObj;
 
-	zhandle_t *zh = zookeeper_init (hosts, zootcl_init_callback, timeout, NULL, zo, 0);
+	zhandle_t *zh = zookeeper_init (hosts, callbackObj?zootcl_init_callback:NULL, timeout, NULL, zo, 0);
 
 	if (zh == NULL) {
 		Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
