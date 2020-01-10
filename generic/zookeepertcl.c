@@ -17,6 +17,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+#define ZEROMEM(ptr) memset((ptr), 0, sizeof(*ptr));
+
 int
 zootcl_EventProc (Tcl_Event *tevPtr, int flags);
 
@@ -322,6 +324,7 @@ zootcl_data_completion_callback (int rc, const char *value, int valueLen, const 
 	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	ZEROMEM(evPtr);
 	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = DATA_CALLBACK;
@@ -367,6 +370,7 @@ zootcl_string_completion_callback (int rc, const char *value, const void *contex
 	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	ZEROMEM(evPtr);
 	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = STRING_CALLBACK;
@@ -402,6 +406,7 @@ zootcl_strings_completion_callback (int rc, const struct String_vector *strings,
 	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	ZEROMEM(evPtr);
 	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = STRING_CALLBACK;
@@ -443,6 +448,7 @@ zootcl_void_completion_callback (int rc, const void *context)
 	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	ZEROMEM(evPtr);
 	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = VOID_CALLBACK;
@@ -470,6 +476,7 @@ zootcl_stat_completion_callback (int rc, const struct Stat *stat, const void *co
 	zootcl_callbackContext *ztc = (zootcl_callbackContext *)context;
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	ZEROMEM(evPtr);
 	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = STAT_CALLBACK;
@@ -505,6 +512,7 @@ zootcl_queue_null_event (zootcl_syncCallbackContext *zsc)
 	zootcl_callbackEvent *evPtr;
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	ZEROMEM(evPtr);
 	evPtr->event.proc = zootcl_EventProc;
 	evPtr->callbackType = NULL_CALLBACK;
 	Tcl_ThreadQueueEvent (zsc->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
@@ -647,6 +655,7 @@ void zootcl_watcher (zhandle_t *zh, int type, int state, const char *path, void*
 	zootcl_callbackEvent *evPtr;
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	ZEROMEM(evPtr);
 	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = WATCHER_CALLBACK;
@@ -695,6 +704,7 @@ void zootcl_init_callback (zhandle_t *zh, int type, int state, const char *path,
 	}
 
 	evPtr = ckalloc (sizeof (zootcl_callbackEvent));
+	ZEROMEM(evPtr);
 	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = INTERNAL_INIT_CALLBACK;
@@ -1270,6 +1280,7 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 
 	if (asyncCallbackObj == NULL) {
 		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
+		ZEROMEM(stat);
 		status = zoo_wexists(zh, path, wfn, (void *)watcherCallbackObj, stat);	
 
 		// if there's no node hand that according to our rule.
@@ -1314,6 +1325,7 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	} else {
 		// do the asynchronous version of znode existence check
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ZEROMEM(ztc);
 		ztc->callbackObj = asyncCallbackObj;
 		ztc->zo = zo;
 
@@ -1469,6 +1481,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 		int bufferLen = 1048576 + 1;
 		char buffer[bufferLen];
 		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
+		ZEROMEM(stat);
 
 		status = zoo_wget(zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);	
 
@@ -1524,6 +1537,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 	} else {
 		// do the asynchronous version
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ZEROMEM(ztc);
 		ztc->callbackObj = asyncCallbackObj;
 		ztc->zo = zo;
 
@@ -1618,6 +1632,7 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 
 	if (callbackObj == NULL) {
 		struct String_vector *strings = (struct String_vector *)ckalloc (sizeof (struct String_vector));
+		ZEROMEM(strings);
 		status = zoo_wget_children(zh, path, wfn, (void *)watcherCallbackObj, strings);	
 
 		if (status != ZOK && status != ZNONODE) {
@@ -1645,6 +1660,7 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		ckfree (strings);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ZEROMEM(ztc);
 		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
 		status = zoo_awget_children (zh, path, wfn, watcherCallbackObj, zootcl_strings_completion_callback, ztc);
@@ -1728,12 +1744,14 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 	if (callbackObj == NULL) {
 		// synchronous set
 		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
+		ZEROMEM(stat);
 		status = zoo_set2(zh, path, buffer, bufferLen, version, stat);
 
 		ckfree (stat);
 	} else {
 		// asynchronous set
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ZEROMEM(ztc);
 		ztc->zo = zo;
 		ztc->callbackObj = callbackObj;
 		status = zoo_aset (zh, path, buffer, bufferLen, version, zootcl_stat_completion_callback, ztc);
@@ -1847,6 +1865,7 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		}
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ZEROMEM(ztc);
 		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
 		status = zoo_acreate (zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, zootcl_string_completion_callback, ztc);
@@ -1926,6 +1945,7 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		status = zoo_delete(zh, path, version);
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
+		ZEROMEM(ztc);
 		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
 		status = zoo_adelete (zh, path, version, zootcl_void_completion_callback, ztc);
@@ -1954,6 +1974,7 @@ zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], Z
 {
     // Remove the command exit handler and delete the command
     Tcl_CmdInfo *infoPtr = (Tcl_CmdInfo *) ckalloc (sizeof (Tcl_CmdInfo));
+    ZEROMEM(infoPtr);
     infoPtr->deleteProc = NULL;
     Tcl_SetCommandInfoFromToken(zo->cmdToken, infoPtr);
     ckfree(infoPtr);
@@ -2177,6 +2198,7 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	//
 	// allocate one of our zookeeper client data objects for Tcl and configure it
 	zo = (zootcl_objectClientData *)ckalloc (sizeof (zootcl_objectClientData));
+	ZEROMEM(zo);
 	zo->zookeeper_object_magic = ZOOKEEPER_OBJECT_MAGIC;
 	zo->interp = interp;
 	zo->threadId = Tcl_GetCurrentThread ();
