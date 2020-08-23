@@ -23,6 +23,29 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags);
 int 
 zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData);
 
+/* NB these are in zookeeper/zookeeper.h, why do i have to declare them
+ * external when a bunch of other functions in there are fine?
+ */
+extern int zoo_wexists(zhandle_t *zh, const char *path,
+        watcher_fn watcher, void* watcherCtx, struct Stat *stat);
+
+extern int zoo_wget(zhandle_t *zh, const char *path,
+        watcher_fn watcher, void* watcherCtx,
+        char *buffer, int* buffer_len, struct Stat *stat);
+
+extern  int zoo_wget_children(zhandle_t *zh, const char *path,
+        watcher_fn watcher, void* watcherCtx,
+        struct String_vector *strings);
+
+extern  int zoo_set2(zhandle_t *zh, const char *path, const char *buffer,
+	   int buflen, int version, struct Stat *stat);
+
+extern  int zoo_create(zhandle_t *zh, const char *path, const char *value,
+        int valuelen, const struct ACL_vector *acl, int mode,
+        char *path_buffer, int path_buffer_len);
+
+extern  int zoo_delete(zhandle_t *zh, const char *path, int version);
+
 /*
  *--------------------------------------------------------------
  *
