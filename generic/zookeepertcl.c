@@ -23,8 +23,10 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags);
 int 
 zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData);
 
+#ifdef THREADED
 // This is not apparently normally called from THREADED.
 ZOOAPI int zookeeper_process(zhandle_t *zh, int events);
+#endif
 
 /*
  *--------------------------------------------------------------
