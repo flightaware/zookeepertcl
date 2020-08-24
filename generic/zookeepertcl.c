@@ -23,28 +23,8 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags);
 int 
 zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData);
 
-/* NB these are in zookeeper/zookeeper.h, why do i have to declare them
- * external when a bunch of other functions in there are fine?
- */
-extern int zoo_wexists(zhandle_t *zh, const char *path,
-        watcher_fn watcher, void* watcherCtx, struct Stat *stat);
-
-extern int zoo_wget(zhandle_t *zh, const char *path,
-        watcher_fn watcher, void* watcherCtx,
-        char *buffer, int* buffer_len, struct Stat *stat);
-
-extern  int zoo_wget_children(zhandle_t *zh, const char *path,
-        watcher_fn watcher, void* watcherCtx,
-        struct String_vector *strings);
-
-extern  int zoo_set2(zhandle_t *zh, const char *path, const char *buffer,
-	   int buflen, int version, struct Stat *stat);
-
-extern  int zoo_create(zhandle_t *zh, const char *path, const char *value,
-        int valuelen, const struct ACL_vector *acl, int mode,
-        char *path_buffer, int path_buffer_len);
-
-extern  int zoo_delete(zhandle_t *zh, const char *path, int version);
+// This is not apparently normally called from THREADED.
+ZOOAPI int zookeeper_process(zhandle_t *zh, int events);
 
 /*
  *--------------------------------------------------------------
@@ -2300,7 +2280,14 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 				return TCL_ERROR;
 			}
 
+#ifdef ZOO_MAJOR_VERSION
+			char format[120];
+
+			snprintf (format, sizeof(format), "%d.%d.%d", ZOO_MAJOR_VERSION, ZOO_MINOR_VERSION, ZOO_PATCH_VERSION);
+			Tcl_SetObjResult (interp, Tcl_NewStringObj (format, -1));
+#else
 			Tcl_SetObjResult (interp, Tcl_NewStringObj (ZOO_VERSION, -1));
+#endif
 			return TCL_OK;
 		}
 
