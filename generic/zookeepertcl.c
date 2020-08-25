@@ -23,6 +23,11 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags);
 int 
 zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData);
 
+#ifdef THREADED
+// This is not apparently normally called from THREADED.
+ZOOAPI int zookeeper_process(zhandle_t *zh, int events);
+#endif
+
 /*
  *--------------------------------------------------------------
  *
@@ -2272,15 +2277,19 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
     switch ((enum options) optIndex) {
 		case OPT_VERSION:
 		{
-			char format[120];
-
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
 				return TCL_ERROR;
 			}
 
+#ifdef ZOO_MAJOR_VERSION
+			char format[120];
+
 			snprintf (format, sizeof(format), "%d.%d.%d", ZOO_MAJOR_VERSION, ZOO_MINOR_VERSION, ZOO_PATCH_VERSION);
 			Tcl_SetObjResult (interp, Tcl_NewStringObj (format, -1));
+#else
+			Tcl_SetObjResult (interp, Tcl_NewStringObj (ZOO_VERSION, -1));
+#endif
 			return TCL_OK;
 		}
 
