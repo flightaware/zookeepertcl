@@ -1841,14 +1841,14 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		// sync version
 		int pathBufferLen = 1024;
 		char pathBuffer[pathBufferLen];
-		status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen);
+		status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen - 1);
 
 		if (status != ZOK) {
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
 		if (status == ZOK) {
-			Tcl_SetObjResult (interp, Tcl_NewStringObj(pathBuffer, pathBufferLen));
+			Tcl_SetObjResult (interp, Tcl_NewStringObj(pathBuffer, -1));
 		}
 	} else {
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
