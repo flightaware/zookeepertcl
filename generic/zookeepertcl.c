@@ -1014,6 +1014,8 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 			listObjv[element++] = Tcl_NewStringObj ("status", -1);
 			listObjv[element++] = Tcl_NewStringObj (zootcl_error_to_code_string (evPtr->data.rc), -1);
 
+			if (evPtr->data.rc != ZOK) break;
+
 			listObjv[element++] = Tcl_NewStringObj ("czxid", -1);
 			listObjv[element++] = Tcl_NewLongObj (evPtr->data.stat.czxid);
 
