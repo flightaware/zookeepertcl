@@ -88,24 +88,17 @@ namespace eval ::zookeeper  {
 	#
 	proc zsync {zk path zpath {pattern *}} {
 		mkpath $zk $zpath
-		#set regexp "^${path}(.*)"
 		set locals [list]
-		foreach file [lsort [glob -nocomplain -dir $path -types f $pattern]] {
-			#regexp $regexp $file dummy tail
-			set tail [file tail $file]
-			copy_file $zk $file [file join $zpath $tail]
-			lappend locals $tail
+		foreach file [lsort [glob -nocomplain -tails -dir $path -types f $pattern]] {
+			copy_file $zk [file join $path $file] [file join $zpath $file]
+			lappend locals $file
 		}
-		foreach dir [lsort [glob -nocomplain -dir $path -types d *]] {
-			#regexp $regexp $dir dummy tailDir
-			set tailDir [file tail $dir]
-			zsync $zk $dir [file join $zpath $tailDir] $pattern
-			lappend locals $tailDir
+		foreach dir [lsort [glob -nocomplain -tails -dir $path -types d *]] {
+			zsync $zk [file join $path $dir] [file join $zpath $dir] $pattern
+			lappend locals $dir
 		}
 		set nodesToRemove [::struct::set difference [$zk children $zpath] $locals]
-		#puts stderr "path: $path zpath: $zpath nodesToRemove: $nodesToRemove dirs + files: $locals children: [$zk children $zpath]"
 		foreach node $nodesToRemove {
-			puts stderr "Removing [file join $zpath $node]"
 			rmrf $zk [file join $zpath $node]
 		}
 	}
