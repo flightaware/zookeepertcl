@@ -5,6 +5,7 @@
 
 package require base64
 package require sha1
+package require struct::set
 
 namespace eval ::zookeeper  {
 	variable zkwd "/"
@@ -80,19 +81,32 @@ namespace eval ::zookeeper  {
 
 	#
 	# zsync - sync a filesystem tree to a znode tree
+	#	removes any items in zk not found in the local
+	#	path
 	#
 	# zpath is prepended to the destination path
 	#
 	proc zsync {zk path zpath {pattern *}} {
 		mkpath $zk $zpath
-		set regexp "^${path}(.*)"
+		#set regexp "^${path}(.*)"
+		set locals [list]
 		foreach file [lsort [glob -nocomplain -dir $path -types f $pattern]] {
-			regexp $regexp $file dummy tail
-			copy_file $zk $file $zpath$tail
+			#regexp $regexp $file dummy tail
+			set tail [file tail $file]
+			copy_file $zk $file [file join $zpath $tail]
+			lappend locals $tail
 		}
 		foreach dir [lsort [glob -nocomplain -dir $path -types d *]] {
-			regexp $regexp $dir dummy tailDir
-			zsync $zk $dir $zpath$tailDir $pattern
+			#regexp $regexp $dir dummy tailDir
+			set tailDir [file tail $dir]
+			zsync $zk $dir [file join $zpath $tailDir] $pattern
+			lappend locals $tailDir
+		}
+		set nodesToRemove [::struct::set difference [$zk children $zpath] $locals]
+		#puts stderr "path: $path zpath: $zpath nodesToRemove: $nodesToRemove dirs + files: $locals children: [$zk children $zpath]"
+		foreach node $nodesToRemove {
+			puts stderr "Removing [file join $zpath $node]"
+			rmrf $zk [file join $zpath $node]
 		}
 	}
 
@@ -182,7 +196,7 @@ namespace eval ::zookeeper  {
 		if {$where eq ""} {
 			set zkwd /
 		} else {
-			set children 
+			set children
 		}
 		return
 	}
