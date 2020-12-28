@@ -97,8 +97,7 @@ namespace eval ::zookeeper  {
 			zsync $zk [file join $path $dir] [file join $zpath $dir] $pattern
 			lappend locals $dir
 		}
-		set nodesToRemove [::struct::set difference [$zk children $zpath] $locals]
-		foreach node $nodesToRemove {
+		foreach node [::struct::set difference [$zk children $zpath] $locals] {
 			rmrf $zk [file join $zpath $node]
 		}
 	}
