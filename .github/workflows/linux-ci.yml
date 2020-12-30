@@ -27,7 +27,3 @@ jobs:
       run: make
     - name: install
       run: sudo make install
-    - name: make test
-      run: make test
-    - name: make examples
-      run: make examples
