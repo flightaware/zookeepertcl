@@ -292,6 +292,8 @@ void *get_in_addr(struct sockaddr *sa)
  *      May set an error message into the Tcl result and
  *      set errorCode.
  *
+ * TODO: something something handling ZCONNECTIONLOSS?
+ *
  *--------------------------------------------------------------
  */
 int
@@ -756,6 +758,7 @@ zootcl_socket_ready (ClientData clientData, int mask)
 	int status = zookeeper_process (zo->zh, events);
 	if ((status != ZOK) && (status != ZNOTHING)) {
 		if (status == ZCONNECTIONLOSS) {
+			// TODO soimething more intelligent than commented out code, is this left over async code?
 			// zootcl_init_callback (zo->zh, ZOO_SESSION_EVENT, 0, NULL, NULL);
 		}
 		fprintf(stderr, "zookeeper_process abnormal status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
@@ -803,6 +806,7 @@ zootcl_EventCommonProc (ClientData clientData, int flags, int doTime) {
 	}
 
 	if ((status != ZOK) && (status != ZNOTHING)) {
+		// TODO something something ZCONNECTIONLOSS?
 // fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 		return;
 	}
@@ -1152,6 +1156,8 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 
 	Tcl_DeleteEvents (zootcl_DeleteEventsForDeletedObject, clientData);
 
+	// TODO DecrRefCount for embedded objects in zootcl_objectClientData!?
+
     	ckfree((char *)clientData);
 }
 
@@ -1295,6 +1301,7 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 
 		// handle errors from the call like bad arguments and stuff
 		if (status != ZOK) {
+			// TODO if ZCONNECTIONLOSS re-init and re-issue exists?
 			ckfree (stat);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
@@ -1320,6 +1327,7 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		ckfree (stat);
 	} else {
 		// do the asynchronous version of znode existence check
+		// TODO save off the call parameters to handle retries for ZCONNECTIONLOSS ?
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = asyncCallbackObj;
 		ztc->zo = zo;
@@ -1493,6 +1501,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 		}
 
 		if (status != ZOK) {
+			// Check for ZCONNECTIONLOSS and retry?
 			ckfree (stat);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
@@ -1628,6 +1637,7 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		status = zoo_wget_children(zh, path, wfn, (void *)watcherCallbackObj, strings);	
 
 		if (status != ZOK && status != ZNONODE) {
+			// TODO check for ZCONNECTIONLOSS and retry?
 			ckfree (strings);
 			return zootcl_set_tcl_return_code (interp, status);
 		} else if (status == ZNONODE) {
@@ -1846,6 +1856,7 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen - 1);
 
 		if (status != ZOK) {
+			// TODO ZCONNECTIONLOSS and retry?
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
@@ -1853,6 +1864,7 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 			Tcl_SetObjResult (interp, Tcl_NewStringObj(pathBuffer, -1));
 		}
 	} else {
+		// TODO save operation for a retry?
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
@@ -2136,22 +2148,24 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zootcl_objectClientData *zo = NULL;
 	int timeout;
 	Tcl_Obj *callbackObj = NULL;
+	Tcl_Obj *reconnectHosts = NULL;
 
 	static CONST char *subOptions[] = {
 		"-async",
+		"-reconnect",
 		NULL
 	};
 
 	enum subOptions {
-		SUBOPT_ASYNC
+		SUBOPT_ASYNC,
+		SUBOPT_RECONNECT
 	};
 
 
-	if ((objc < 5) || (objc > 7)) {
-		Tcl_WrongNumArgs (interp, 2, objv, "cmdName hosts timeout ?-async callback?");
+	if ((objc < 5) || (objc > 8)) {
+		Tcl_WrongNumArgs (interp, 2, objv, "cmdName hosts timeout ?-async callback? ?-reconnect?");
 		return TCL_ERROR;
 	}
-
 
 	if (Tcl_GetIntFromObj (interp, objv[4], &timeout) == TCL_ERROR) {
 		return TCL_ERROR;
@@ -2179,8 +2193,22 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 				Tcl_IncrRefCount (callbackObj);
 				break;
 			}
+			case SUBOPT_RECONNECT:
+			{
+				reconnectHosts = objv[3];
+				Tcl_IncrRefCount (reconnectHosts);
+				break;
+			}
 		}
 	}
+
+	if(callbackObj && reconnectHosts) {
+		Tcl_WrongNumArgs (interp, 2, objv, "-async and -reconnect are not compatible"
+		Tcl_DecrRefCount (callbackObj);
+		Tcl_DecrRefCount (reconnectHosts);
+		return TCL_ERROR;
+	}
+
 	//
 	// allocate one of our zookeeper client data objects for Tcl and configure it
 	zo = (zootcl_objectClientData *)ckalloc (sizeof (zootcl_objectClientData));
@@ -2190,6 +2218,8 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zo->channel = NULL;
 	zo->currentFD = -1;
 	zo->initCallbackObj = callbackObj;
+	zo->reconnectHosts = reconnectHosts;
+	zo->reconnectTimeout = timeout;
 
 	zhandle_t *zh = zookeeper_init (hosts, callbackObj?zootcl_init_callback:NULL, timeout, NULL, zo, 0);
 

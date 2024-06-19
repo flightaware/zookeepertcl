@@ -32,6 +32,8 @@ typedef struct zootcl_objectClientData
 	Tcl_Channel channel;
 	int currentFD;
 	Tcl_Obj *initCallbackObj; // handle callbacks from zookeeper_init callback function
+	Tcl_Obj *reconnectHosts; // Reconnect on disconnect, sync connections only
+	int reconnectTimeout;
 } zootcl_objectClientData;
 
 enum zootcl_CallbackType {NULL_CALLBACK, INTERNAL_INIT_CALLBACK, WATCHER_CALLBACK, DATA_CALLBACK, STRING_CALLBACK, VOID_CALLBACK, STAT_CALLBACK};
