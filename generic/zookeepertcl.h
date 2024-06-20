@@ -24,8 +24,8 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 // zookeeper and zookeepertcl to be able to find one from the other
 typedef struct zootcl_objectClientData
 {
-    int zookeeper_object_magic;
-    Tcl_Interp *interp;
+	int zookeeper_object_magic;
+	Tcl_Interp *interp;
 	ZOOAPI zhandle_t *zh;
 	Tcl_ThreadId threadId;
 	Tcl_Command cmdToken;
@@ -34,6 +34,7 @@ typedef struct zootcl_objectClientData
 	Tcl_Obj *initCallbackObj; // handle callbacks from zookeeper_init callback function
 	Tcl_Obj *reconnectHosts; // Reconnect on disconnect, sync connections only
 	int reconnectTimeout;
+	Tcl_Obj *watchList; // List of watches to reconstitute after reconnection.
 } zootcl_objectClientData;
 
 enum zootcl_CallbackType {NULL_CALLBACK, INTERNAL_INIT_CALLBACK, WATCHER_CALLBACK, DATA_CALLBACK, STRING_CALLBACK, VOID_CALLBACK, STAT_CALLBACK};

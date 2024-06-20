@@ -292,8 +292,6 @@ void *get_in_addr(struct sockaddr *sa)
  *      May set an error message into the Tcl result and
  *      set errorCode.
  *
- * TODO: something something handling ZCONNECTIONLOSS?
- *
  *--------------------------------------------------------------
  */
 int
@@ -484,12 +482,12 @@ zootcl_stat_completion_callback (int rc, const struct Stat *stat, const void *co
 
 	evPtr->data.rc = rc;
 	evPtr->data.dataObj = NULL;
-    
-    if (stat != NULL) {
-	    evPtr->data.stat = *stat;
-    }
 
-    evPtr->zo = ztc->zo;
+	if (stat != NULL) {
+		evPtr->data.stat = *stat;
+	}
+
+	evPtr->zo = ztc->zo;
 	ckfree(ztc);
 
 	Tcl_ThreadQueueEvent (evPtr->zo->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
@@ -1112,7 +1110,7 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
  */
 int zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData) {
 	zootcl_callbackEvent *zevPtr = (zootcl_callbackEvent *)tevPtr;
-	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;    
+	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
 	return zo && zevPtr->zo == zo;
 }
 
@@ -1549,6 +1547,33 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 	return zootcl_set_tcl_return_code (interp, status);
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_add_watch(zo, path, code) TODO
+ *
+ * Add a watch to the list of watches for reconstitution after reconnection.
+ *
+ *----------------------------------------------------------------------
+ */
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * zootcl_reconnect(zo) TODO
+ *
+ * refresh a zookeeper connection.
+ *
+ * Close zo->zh
+ *
+ * Re-open zh using zo->reconnectHosts and zo
+ *
+ * Recreate the watches in zh using zo->watchList
+ *
+ * Point zo->zh at the new zh
+ *
+ *----------------------------------------------------------------------
+ */
 
 /*
  *----------------------------------------------------------------------
@@ -1656,7 +1681,7 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
             Tcl_Obj *listObj = Tcl_NewListObj (strings->count, listObjv);
 		    Tcl_SetObjResult (interp, listObj);
         } else {
-            Tcl_SetObjResult (interp, Tcl_NewListObj (0, NULL));    
+            Tcl_SetObjResult (interp, Tcl_NewListObj (0, NULL));
         }
 
 		ckfree (strings);
@@ -2084,7 +2109,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 		case OPT_SERVER:
 		{
 			struct sockaddr sa;
-			socklen_t sa_len = sizeof sa; 
+			socklen_t sa_len = sizeof sa;
 			int res;
 			char host[1024];
 
@@ -2149,6 +2174,7 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	int timeout;
 	Tcl_Obj *callbackObj = NULL;
 	Tcl_Obj *reconnectHosts = NULL;
+	Tcl_Obj *scriptList
 
 	static CONST char *subOptions[] = {
 		"-async",
@@ -2220,6 +2246,7 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zo->initCallbackObj = callbackObj;
 	zo->reconnectHosts = reconnectHosts;
 	zo->reconnectTimeout = timeout;
+	zo->watchList = Tcl_NewObj();
 
 	zhandle_t *zh = zookeeper_init (hosts, callbackObj?zootcl_init_callback:NULL, timeout, NULL, zo, 0);
 
