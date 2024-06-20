@@ -1144,9 +1144,13 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 #endif
 	Tcl_DeleteEventSource (zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData) zo);
 
-	// In some rare cases the init callback for zo may be hanging here
-	// so call zookeeper_close before invalidating the object.
-	zookeeper_close (zo->zh);
+	// This may be called after the connection has been closed, so make sire the connection exists
+	if(zo->zh) {
+		// In some rare cases the init callback for zo may be hanging here
+		// so call zookeeper_close before invalidating the object.
+		zookeeper_close (zo->zh);
+		zo->zh = NULL;
+	}
 
 	// we are freeing memory in a sec, clear the magic number
 	// so attempt to reuse a freed object will be an assertion
@@ -1155,7 +1159,19 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 
 	Tcl_DeleteEvents (zootcl_DeleteEventsForDeletedObject, clientData);
 
-	// TODO DecrRefCount for embedded objects in zootcl_objectClientData!?
+	// DecrRefCount for embedded objects in zootcl_objectClientData!?
+	if(zo->initCallbackObj) {
+		Tcl_DecrRefCount(zo->initCallbackObj);
+		zo->initCallbackObj = NULL;
+	}
+	if(zo->reconnectHosts) {
+		Tcl_DecrRefCount(zo->reconnectHosts);
+		zo->reconnectHosts = NULL;
+	}
+	if(zo->watchList) {
+		Tcl_DecrRefCount(zo->watchList);
+		zo->watchList = NULL;
+	}
 
     	ckfree((char *)clientData);
 }
@@ -1285,8 +1301,9 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		status = zoo_wexists(zh, path, wfn, (void *)watcherCallbackObj, stat);	
 
 		if(status == ZCONNECTIONLOSS) {
-			zootcl_reconnect(zo);
-			status = zoo_wexists(zh, path, wfn, (void *)watcherCallbackObj, stat);
+			if(zootcl_reconnect(zo) == ZOK) {
+				status = zoo_wexists(zh, path, wfn, (void *)watcherCallbackObj, stat);
+			}
 		}
 
 
@@ -1498,8 +1515,9 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 		status = zoo_wget(zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);	
 
 		if(status == ZCONNECTIONLOSS) {
-			zootcl_reconnect(zo);
-			status = zoo_wget(zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);	
+			if(zootcl_reconnect(zo) == ZOK) {
+				status = zoo_wget(zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);	
+			}
 		}
 
 		// if the node does not exist and -data was specified
@@ -1597,6 +1615,16 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
  *
  *----------------------------------------------------------------------
  */
+int zootcl_reconnect(zootcl_objectClientData *zo)
+{
+	// Close existing connection.
+	zookeeper_close (zo->zh);
+	zo->zh = NULL;
+	// Re-open connection
+	// Re-hook all the tubes and wires back in
+	// Re-apply the watches
+	return ZOK;
+}
 
 /*
  *----------------------------------------------------------------------
@@ -1685,8 +1713,9 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		status = zoo_wget_children(zh, path, wfn, (void *)watcherCallbackObj, strings);	
 
 		if(status == ZCONNECTIONLOSS) {
-			zootcl_reconnect(zo);
-			status = zoo_wget_children(zh, path, wfn, (void *)watcherCallbackObj, strings);	
+			if(zootcl_reconnect(zo) == ZOK) {
+				status = zoo_wget_children(zh, path, wfn, (void *)watcherCallbackObj, strings);	
+			}
 		}
 
 		if (status != ZOK && status != ZNONODE) {
@@ -1912,8 +1941,9 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen - 1);
 
 		if(status == ZCONNECTIONLOSS) {
-			zootcl_reconnect(zo);
-			status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen - 1);
+			if(zootcl_reconnect(zo) == ZOK) {
+				status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen - 1);
+			}
 		}
 
 		if (status != ZOK) {
