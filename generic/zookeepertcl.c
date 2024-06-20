@@ -739,7 +739,7 @@ zootcl_socket_ready (ClientData clientData, int mask)
 {
 	int events = 0;
 	zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
-    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+	assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
 	if (mask & TCL_EXCEPTION) {
 		fprintf (stderr, "SOCKET EXCEPTION\n");
@@ -804,7 +804,6 @@ zootcl_EventCommonProc (ClientData clientData, int flags, int doTime) {
 	}
 
 	if ((status != ZOK) && (status != ZNOTHING)) {
-		// TODO something something ZCONNECTIONLOSS?
 // fprintf(stderr, "zootcl_EventCommonProc: status %s, fd %d, interest read %d, write %d, secs %d, usecs %d\n", zootcl_error_to_code_string (status), fd, interest & ZOOKEEPER_READ ? 1 : 0, interest & ZOOKEEPER_WRITE ? 1 : 0, tv.tv_sec, tv.tv_usec);
 		return;
 	}
@@ -1285,6 +1284,12 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
 		status = zoo_wexists(zh, path, wfn, (void *)watcherCallbackObj, stat);	
 
+		if(status == ZCONNECTIONLOSS) {
+			zootcl_reconnect(zo);
+			status = zoo_wexists(zh, path, wfn, (void *)watcherCallbackObj, stat);
+		}
+
+
 		// if there's no node hand that according to our rule.
 		// unset the version var since we don't have one and we
 		// don't want to confuse the caller by letting through some
@@ -1294,6 +1299,9 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 			if (versionVarObj != NULL) {
 				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
 			}
+			if(watcherCallbackObj != NULL) {
+				zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
+			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
 			ckfree (stat);
 			return TCL_OK;
@@ -1301,9 +1309,12 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 
 		// handle errors from the call like bad arguments and stuff
 		if (status != ZOK) {
-			// TODO if ZCONNECTIONLOSS re-init and re-issue exists?
 			ckfree (stat);
 			return zootcl_set_tcl_return_code (interp, status);
+		}
+
+		if(watcherCallbackObj != NULL) {
+			zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
 		}
 
 		// it does exist
@@ -1327,7 +1338,6 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		ckfree (stat);
 	} else {
 		// do the asynchronous version of znode existence check
-		// TODO save off the call parameters to handle retries for ZCONNECTIONLOSS ?
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = asyncCallbackObj;
 		ztc->zo = zo;
@@ -1487,6 +1497,11 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
 		status = zoo_wget(zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);	
 
+		if(status == ZCONNECTIONLOSS) {
+			zootcl_reconnect(zo);
+			status = zoo_wget(zh, path, wfn, (void *)watcherCallbackObj, buffer, &bufferLen, stat);	
+		}
+
 		// if the node does not exist and -data was specified
 		// unset the var: do the same if a -version var was
 		// also specified and, finally, return 0
@@ -1495,13 +1510,15 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			if (versionVarObj != NULL) {
 				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
 			}
+			if(watcherCallbackObj != NULL) {
+				zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
+			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
 			ckfree (stat);
 			return TCL_OK;
 		}
 
 		if (status != ZOK) {
-			// Check for ZCONNECTIONLOSS and retry?
 			ckfree (stat);
 			return zootcl_set_tcl_return_code (interp, status);
 		}
@@ -1535,6 +1552,10 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 				ckfree (stat);
 				return TCL_ERROR;
 			}
+		}
+
+		if(watcherCallbackObj != NULL) {
+			zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
 		}
 		ckfree (stat);
 	} else {
@@ -1614,7 +1635,7 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 	int status;
 	watcher_fn wfn = NULL;
 
-    assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
+	assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
 
 	if ((objc < 3) || (objc > 7)) {
 		Tcl_WrongNumArgs (interp, 2, objv, "path ?-async callback? ?-watch code?");
@@ -1663,8 +1684,12 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 		struct String_vector *strings = (struct String_vector *)ckalloc (sizeof (struct String_vector));
 		status = zoo_wget_children(zh, path, wfn, (void *)watcherCallbackObj, strings);	
 
+		if(status == ZCONNECTIONLOSS) {
+			zootcl_reconnect(zo);
+			status = zoo_wget_children(zh, path, wfn, (void *)watcherCallbackObj, strings);	
+		}
+
 		if (status != ZOK && status != ZNONODE) {
-			// TODO check for ZCONNECTIONLOSS and retry?
 			ckfree (strings);
 			return zootcl_set_tcl_return_code (interp, status);
 		} else if (status == ZNONODE) {
@@ -1673,18 +1698,22 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 			strings->count = 0;
 		}
 		
-        if (strings->count > 0) {
-            Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * strings->count);
+		if(watcherCallbackObj != NULL) {
+			zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
+		}
 
-            for (i = 0; i < strings->count; i++) {
-                listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
-            }
+		if (strings->count > 0) {
+			Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * strings->count);
 
-            Tcl_Obj *listObj = Tcl_NewListObj (strings->count, listObjv);
-		    Tcl_SetObjResult (interp, listObj);
-        } else {
-            Tcl_SetObjResult (interp, Tcl_NewListObj (0, NULL));
-        }
+			for (i = 0; i < strings->count; i++) {
+				listObjv[i] = Tcl_NewStringObj (strings->data[i], -1);
+			}
+
+			Tcl_Obj *listObj = Tcl_NewListObj (strings->count, listObjv);
+			    Tcl_SetObjResult (interp, listObj);
+		} else {
+			Tcl_SetObjResult (interp, Tcl_NewListObj (0, NULL));
+		}
 
 		ckfree (strings);
 	} else {
@@ -1882,8 +1911,12 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		char pathBuffer[pathBufferLen];
 		status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen - 1);
 
+		if(status == ZCONNECTIONLOSS) {
+			zootcl_reconnect(zo);
+			status = zoo_create(zh, path, value, valueLen, &ZOO_OPEN_ACL_UNSAFE, flags, pathBuffer, pathBufferLen - 1);
+		}
+
 		if (status != ZOK) {
-			// TODO ZCONNECTIONLOSS and retry?
 			return zootcl_set_tcl_return_code (interp, status);
 		}
 
@@ -1891,7 +1924,6 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 			Tcl_SetObjResult (interp, Tcl_NewStringObj(pathBuffer, -1));
 		}
 	} else {
-		// TODO save operation for a retry?
 		zootcl_callbackContext *ztc = (zootcl_callbackContext *)ckalloc (sizeof (zootcl_callbackContext));
 		ztc->callbackObj = callbackObj;
 		ztc->zo = zo;
