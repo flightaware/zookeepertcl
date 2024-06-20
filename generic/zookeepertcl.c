@@ -1137,10 +1137,12 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 
 	Tcl_DeleteExitHandler (zootcl_zookeeperObjectDelete, clientData);
 	Tcl_DeleteThreadExitHandler (zootcl_zookeeperObjectDelete, clientData);
+#ifndef TCL_THREADS
 	if (zo->channel != NULL) {
 		Tcl_DeleteChannelHandler (zo->channel, zootcl_socket_ready, (ClientData)zo);
 		Tcl_DetachChannel (zo->interp, zo->channel);
 	}
+#endif
 	Tcl_DeleteEventSource (zootcl_EventSetupProc, zootcl_EventCheckProc, (ClientData) zo);
 
 	// In some rare cases the init callback for zo may be hanging here
@@ -2174,7 +2176,6 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	int timeout;
 	Tcl_Obj *callbackObj = NULL;
 	Tcl_Obj *reconnectHosts = NULL;
-	Tcl_Obj *scriptList
 
 	static CONST char *subOptions[] = {
 		"-async",
@@ -2229,7 +2230,7 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	}
 
 	if(callbackObj && reconnectHosts) {
-		Tcl_WrongNumArgs (interp, 2, objv, "-async and -reconnect are not compatible"
+		Tcl_WrongNumArgs (interp, 2, objv, "-async and -reconnect are not compatible");
 		Tcl_DecrRefCount (callbackObj);
 		Tcl_DecrRefCount (reconnectHosts);
 		return TCL_ERROR;
@@ -2241,8 +2242,10 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zo->zookeeper_object_magic = ZOOKEEPER_OBJECT_MAGIC;
 	zo->interp = interp;
 	zo->threadId = Tcl_GetCurrentThread ();
+#ifndef TCL_THREADS
 	zo->channel = NULL;
 	zo->currentFD = -1;
+#endif
 	zo->initCallbackObj = callbackObj;
 	zo->reconnectHosts = reconnectHosts;
 	zo->reconnectTimeout = timeout;

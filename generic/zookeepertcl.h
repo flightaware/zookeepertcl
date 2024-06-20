@@ -29,8 +29,10 @@ typedef struct zootcl_objectClientData
 	ZOOAPI zhandle_t *zh;
 	Tcl_ThreadId threadId;
 	Tcl_Command cmdToken;
+#ifndef TCL_THREADS
 	Tcl_Channel channel;
 	int currentFD;
+#endif
 	Tcl_Obj *initCallbackObj; // handle callbacks from zookeeper_init callback function
 	Tcl_Obj *reconnectHosts; // Reconnect on disconnect, sync connections only
 	int reconnectTimeout;
