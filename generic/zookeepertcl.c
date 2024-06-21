@@ -1242,6 +1242,7 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 				}
 				watcherCallbackObj = objv[++i];
 				Tcl_IncrRefCount (watcherCallbackObj);
+
 				break;
 			}
 
@@ -1353,6 +1354,11 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 				return TCL_ERROR;
 			}
 		}
+
+		if(watcherCallbackObj != NULL) {
+			zootcl_add_watch(interp, zo, ZOOTCL_WATCH_EXISTS, objv[2], watcherCallbackObj);
+		}
+
 		ckfree (stat);
 	} else {
 		// do the asynchronous version of znode existence check
@@ -1575,8 +1581,9 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 		}
 
 		if(watcherCallbackObj != NULL) {
-			zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
+			zootcl_add_watch(interp, zo, ZOOTCL_WATCH_GET, objv[2], watcherCallbackObj);
 		}
+
 		ckfree (stat);
 	} else {
 		// do the asynchronous version
@@ -1593,17 +1600,25 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 /*
  *----------------------------------------------------------------------
  *
- * zootcl_add_watch(zo, path, code) TODO
+ * zootcl_add_watch(zo, type, path, code)
  *
  * Add a watch to the list of watches for reconstitution after reconnection.
  *
  *----------------------------------------------------------------------
  */
+int zootcl_add_watch(interp, zootcl_objectClientData *zo, zootcl_WatchType type, Tcl_Obj *path, Tcl_Obj *code)
+{
+	if (!zo->watchList)
+		zo->watchList = Tcl_NewObj();
+	Tcl_ListObjAppendElement(interp, zo->watchList, Tcl_NewIntObj((int) type));
+	Tcl_ListObjAppendElement(interp, zo->watchList, path);
+	Tcl_ListObjAppendElement(interp, zo->watchList, code);
+}
 
 /*
  *----------------------------------------------------------------------
  *
- * zootcl_reconnect(zo) TODO
+ * zootcl_reconnect(zo)
  *
  * refresh a zookeeper connection.
  *
@@ -1635,6 +1650,41 @@ int zootcl_reconnect(interp, zootcl_objectClientData *zo)
 	zoo_set_context (zo->zh, (void *)zo);
 
 	// Re-apply the watches
+	int i;
+	int len = Tcl_ListObjLength(zo->watchList);
+	if(len % 3 != 0) {
+		Tcl_SetObjResult (interp, Tcl_NewStringObj ("Internal error, watch list length not a multiple of 3"));
+		return TCL_ERROR;
+	}
+
+	Tcl_Obj *typeObj, *pathObj, *codeObj;
+	for(i = 0; i < len; i += 3) {
+		if(Tcl_ListObjIndex(interp, zo->watchList, i+0, &typeObj) != TCL_OK)
+			return TCL_ERROR;
+		if(Tcl_ListObjIndex(interp, zo->watchList, i+1, &pathObj) != TCL_OK)
+			return TCL_ERROR;
+		if(Tcl_ListObjIndex(interp, zo->watchList, i+0, &codeObj) != TCL_OK)
+			return TCL_ERROR;
+		// Using "exists" to replicate "get" because the calling syntax is simpler and it seems to use the
+		// same ZooWatcherType in the C library.
+		switch((zootcl_WatchType) Tcl_GetInt(typeObj)) {
+			case ZOOTCL_WATCH_GET:
+			case ZOOTCL_WATCH_EXISTS:
+				struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
+				status = zoo_wexists(zh, Tcl_GetString(path), zootcl_watcher, (void *)codeObj, stat);	
+				ckfree(stat);
+				break;
+			case ZOOTCL_WATCH_CHILDREN:
+				struct String_vector *strings = (struct String_vector *)ckalloc (sizeof (struct String_vector));
+				status = zoo_wget_children(zh, Tcl_GetString(path), zootcl_watcher, (void *)codeObj, strings);	
+				ckfree(strings);
+				break;
+			default:
+				Tcl_SetObjResult (interp, Tcl_NewStringObj ("Internal error, watch type unknown"));
+				return TCL_ERROR;
+		}
+	}
+
 	return TCL_OK;
 }
 
@@ -1739,10 +1789,6 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 			status = ZOK;
 			strings->count = 0;
 		}
-		
-		if(watcherCallbackObj != NULL) {
-			zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
-		}
 
 		if (strings->count > 0) {
 			Tcl_Obj **listObjv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * strings->count);
@@ -1755,6 +1801,10 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
 			    Tcl_SetObjResult (interp, listObj);
 		} else {
 			Tcl_SetObjResult (interp, Tcl_NewListObj (0, NULL));
+		}
+
+		if(watcherCallbackObj != NULL) {
+			zootcl_add_watch(interp, zo, ZOOTCL_WATCH_CHILDREN, objv[2], watcherCallbackObj);
 		}
 
 		ckfree (strings);
