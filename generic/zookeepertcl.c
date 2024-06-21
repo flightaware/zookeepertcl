@@ -756,7 +756,7 @@ zootcl_socket_ready (ClientData clientData, int mask)
 	int status = zookeeper_process (zo->zh, events);
 	if ((status != ZOK) && (status != ZNOTHING)) {
 		if (status == ZCONNECTIONLOSS) {
-			// TODO soimething more intelligent than commented out code, is this left over async code?
+			// TODO soimething more intelligent here
 			// zootcl_init_callback (zo->zh, ZOO_SESSION_EVENT, 0, NULL, NULL);
 		}
 		fprintf(stderr, "zookeeper_process abnormal status %s, readable %d, writable %d\n", zootcl_error_to_code_string (status), events & ZOOKEEPER_READ ? 1 : 0, events & ZOOKEEPER_WRITE ? 1:0);
@@ -1159,7 +1159,7 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
 
 	Tcl_DeleteEvents (zootcl_DeleteEventsForDeletedObject, clientData);
 
-	// DecrRefCount for embedded objects in zootcl_objectClientData!?
+	// DecrRefCount for embedded objects in zootcl_objectClientData!
 	if(zo->initCallbackObj) {
 		Tcl_DecrRefCount(zo->initCallbackObj);
 		zo->initCallbackObj = NULL;
@@ -1308,7 +1308,6 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 			status = zoo_wexists(zh, path, wfn, (void *)watcherCallbackObj, stat);
 		}
 
-
 		// if there's no node hand that according to our rule.
 		// unset the version var since we don't have one and we
 		// don't want to confuse the caller by letting through some
@@ -1319,7 +1318,7 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
 			}
 			if(watcherCallbackObj != NULL) {
-				zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
+				zootcl_add_watch(interp, zo, ZOOTCL_WATCH_EXISTS, objv[2], watcherCallbackObj);
 			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
 			ckfree (stat);
@@ -1330,10 +1329,6 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 		if (status != ZOK) {
 			ckfree (stat);
 			return zootcl_set_tcl_return_code (interp, status);
-		}
-
-		if(watcherCallbackObj != NULL) {
-			zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
 		}
 
 		// it does exist
@@ -1537,6 +1532,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 				Tcl_UnsetVar (interp, Tcl_GetString (versionVarObj), 0);
 			}
 			if(watcherCallbackObj != NULL) {
+				zootcl_add_watch(interp, zo, ZOOTCL_WATCH_GET, objv[2], watcherCallbackObj);
 				zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
 			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
@@ -1608,8 +1604,10 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
  */
 int zootcl_add_watch(interp, zootcl_objectClientData *zo, zootcl_WatchType type, Tcl_Obj *path, Tcl_Obj *code)
 {
-	if (!zo->watchList)
+	if (!zo->watchList) {
 		zo->watchList = Tcl_NewObj();
+		Tcl_IncrRefCount(zo->watchList);
+	}
 	Tcl_ListObjAppendElement(interp, zo->watchList, Tcl_NewIntObj((int) type));
 	Tcl_ListObjAppendElement(interp, zo->watchList, path);
 	Tcl_ListObjAppendElement(interp, zo->watchList, code);
@@ -2376,6 +2374,7 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 	zo->reconnectHosts = reconnectHosts;
 	zo->reconnectTimeout = timeout;
 	zo->watchList = Tcl_NewObj();
+	Tcl_IncrRefCount(zo->watchList);
 
 	zhandle_t *zh = zookeeper_init (hosts, callbackObj?zootcl_init_callback:NULL, timeout, NULL, zo, 0);
 
