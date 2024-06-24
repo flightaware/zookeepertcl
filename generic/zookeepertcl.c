@@ -661,7 +661,7 @@ void zootcl_watcher (zhandle_t *zh, int type, int state, const char *path, void*
 	evPtr->event.proc = zootcl_EventProc;
 
 	evPtr->callbackType = WATCHER_CALLBACK;
-    evPtr->zo = (zootcl_objectClientData *)zoo_get_context (zh);
+	evPtr->zo = (zootcl_objectClientData *)zoo_get_context (zh);
 	evPtr->commandObj = (Tcl_Obj *)context;
 
 	evPtr->watcher.type = type;
