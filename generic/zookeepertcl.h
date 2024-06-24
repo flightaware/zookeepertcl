@@ -43,7 +43,6 @@ enum zootcl_CallbackType {NULL_CALLBACK, INTERNAL_INIT_CALLBACK, WATCHER_CALLBAC
 
 enum zootcl_WatchType {ZOOTCL_WATCH_EXISTS, ZOOTCL_WATCH_GET, ZOOTCL_WATCH_CHILDREN};
 
-
 typedef struct zootcl_callbackContext
 {
 	zootcl_objectClientData *zo;

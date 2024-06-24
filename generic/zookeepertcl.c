@@ -23,6 +23,12 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags);
 int 
 zootcl_DeleteEventsForDeletedObject (Tcl_Event *tevPtr, ClientData clientData);
 
+int
+zootcl_add_watch(Tcl_Interp *interp, zootcl_objectClientData *zo, enum zootcl_WatchType type, Tcl_Obj *path, Tcl_Obj *code);
+
+int
+zootcl_reconnect(Tcl_Interp *interp, zootcl_objectClientData *zo);
+
 #ifdef THREADED
 // This is not apparently normally called from THREADED.
 ZOOAPI int zookeeper_process(zhandle_t *zh, int events);
@@ -305,7 +311,7 @@ zootcl_set_tcl_return_code (Tcl_Interp *interp, int status) {
 	// NB this needs to be spruced up to set errorCode and a
 	// better error message and stuff
 	Tcl_SetObjResult (interp, Tcl_NewStringObj (messageString, -1));
-	Tcl_SetErrorCode(interp, "ZOOKEEPER", stateString, messageString, (char *) NULL);
+	Tcl_SetErrorCode (interp, "ZOOKEEPER", stateString, messageString, (char *) NULL);
 	return TCL_ERROR;
 }
 
@@ -1533,7 +1539,6 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 			}
 			if(watcherCallbackObj != NULL) {
 				zootcl_add_watch(interp, zo, ZOOTCL_WATCH_GET, objv[2], watcherCallbackObj);
-				zookeeper_add_watch(zo, objv[2], watcherCallbackObj);
 			}
 			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (0));
 			ckfree (stat);
@@ -1602,7 +1607,7 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
  *
  *----------------------------------------------------------------------
  */
-int zootcl_add_watch(interp, zootcl_objectClientData *zo, zootcl_WatchType type, Tcl_Obj *path, Tcl_Obj *code)
+int zootcl_add_watch(Tcl_Interp *interp, zootcl_objectClientData *zo, enum zootcl_WatchType type, Tcl_Obj *path, Tcl_Obj *code)
 {
 	if (!zo->watchList) {
 		zo->watchList = Tcl_NewObj();
@@ -1630,14 +1635,14 @@ int zootcl_add_watch(interp, zootcl_objectClientData *zo, zootcl_WatchType type,
  *
  *----------------------------------------------------------------------
  */
-int zootcl_reconnect(interp, zootcl_objectClientData *zo)
+int zootcl_reconnect(Tcl_Interp *interp, zootcl_objectClientData *zo)
 {
 	// Close existing connection.
 	zookeeper_close (zo->zh);
 	zo->zh = NULL;
 
 	// Re-open connection
-	zhandle_t *zh = zookeeper_init (Tcl_GetSTring(zo->reconnectHosts), NULL, zo->reconnectTimeout, NULL, zo, 0);
+	zhandle_t *zh = zookeeper_init (Tcl_GetString(zo->reconnectHosts), NULL, zo->reconnectTimeout, NULL, zo, 0);
 
 	if (zh == NULL) {
 		Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
@@ -1649,15 +1654,22 @@ int zootcl_reconnect(interp, zootcl_objectClientData *zo)
 
 	// Re-apply the watches
 	int i;
-	int len = Tcl_ListObjLength(zo->watchList);
+	int len;
+	if(Tcl_ListObjLength(interp, zo->watchList, &len) != TCL_OK) {
+		return TCL_ERROR;
+	}
 	if(len % 3 != 0) {
-		Tcl_SetObjResult (interp, Tcl_NewStringObj ("Internal error, watch list length not a multiple of 3"));
+		Tcl_SetObjResult (interp, Tcl_NewStringObj ("Internal error, watch list length not a multiple of 3", -1));
 		return TCL_ERROR;
 	}
 
 	Tcl_Obj *typeObj, *pathObj, *codeObj;
+	int type;
+
 	for(i = 0; i < len; i += 3) {
 		if(Tcl_ListObjIndex(interp, zo->watchList, i+0, &typeObj) != TCL_OK)
+			return TCL_ERROR;
+		if(Tcl_GetIntFromObj(interp, typeObj, &type) != TCL_OK)
 			return TCL_ERROR;
 		if(Tcl_ListObjIndex(interp, zo->watchList, i+1, &pathObj) != TCL_OK)
 			return TCL_ERROR;
@@ -1665,21 +1677,31 @@ int zootcl_reconnect(interp, zootcl_objectClientData *zo)
 			return TCL_ERROR;
 		// Using "exists" to replicate "get" because the calling syntax is simpler and it seems to use the
 		// same ZooWatcherType in the C library.
-		switch((zootcl_WatchType) Tcl_GetInt(typeObj)) {
+
+		switch((enum zootcl_WatchType) type) {
 			case ZOOTCL_WATCH_GET:
-			case ZOOTCL_WATCH_EXISTS:
+			case ZOOTCL_WATCH_EXISTS: {
 				struct Stat *stat = (struct Stat *)ckalloc (sizeof (struct Stat));
-				status = zoo_wexists(zh, Tcl_GetString(path), zootcl_watcher, (void *)codeObj, stat);	
+				int status = zoo_wexists(zh, Tcl_GetString(pathObj), zootcl_watcher, (void *)codeObj, stat);	
 				ckfree(stat);
+				if(status != ZOK && status != ZNONODE) {
+					return zootcl_set_tcl_return_code (interp, status);
+				}
 				break;
-			case ZOOTCL_WATCH_CHILDREN:
+			}
+			case ZOOTCL_WATCH_CHILDREN: {
 				struct String_vector *strings = (struct String_vector *)ckalloc (sizeof (struct String_vector));
-				status = zoo_wget_children(zh, Tcl_GetString(path), zootcl_watcher, (void *)codeObj, strings);	
+				int status = zoo_wget_children(zh, Tcl_GetString(pathObj), zootcl_watcher, (void *)codeObj, strings);	
 				ckfree(strings);
+				if(status != ZOK && status != ZNONODE) {
+					return zootcl_set_tcl_return_code (interp, status);
+				}
 				break;
-			default:
-				Tcl_SetObjResult (interp, Tcl_NewStringObj ("Internal error, watch type unknown"));
+			}
+			default: {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj ("Internal error, watch type unknown", -1));
 				return TCL_ERROR;
+			}
 		}
 	}
 
