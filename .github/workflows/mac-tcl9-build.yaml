@@ -17,7 +17,7 @@ jobs:
       run: |
         brew update
         brew reinstall tcl-tk@9
-9       brew install autoconf
+        brew install autoconf
         brew install automake
         brew install cppunit
         brew install pkgconfig
