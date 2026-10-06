@@ -16,9 +16,14 @@ jobs:
     - name: Install dependencies
       run: |
         brew update
+        brew install zookeeper_mt
         brew install autoconf
+        brew install automake
+        brew install cppunit
+        brew install pkgconfig
+        brew install libtool
         brew reinstall tcl-tk@8
-    - name: configure	
+    - name: configure
       run: |
         autoreconf -vi
         PREFIX=/opt/homebrew/opt/tcl-tk@8
