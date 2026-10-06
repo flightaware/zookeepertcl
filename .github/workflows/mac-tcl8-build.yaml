@@ -16,13 +16,24 @@ jobs:
     - name: Install dependencies
       run: |
         brew update
+        brew reinstall tcl-tk@8
         brew install zookeeper_mt
         brew install autoconf
         brew install automake
         brew install cppunit
         brew install pkgconfig
         brew install libtool
-        brew reinstall tcl-tk@8
+        brew install openssl
+        brew install mvn
+        git clone https://github.com/apache/zookeeper.git
+        cd zookeeper
+        mvn -pl zookeeper-jute compile
+        cd zookeeper-client/zookeeper-client-c/
+        autoreconf -vi
+        ./configure
+        sed -i "" '/const size_t MAX_PASSWORD_LEN = 1023;/s//#define MAX_PASSWORD_LEN 1023/' src/zk_sasl.c
+        make
+        sudo make install
     - name: configure
       run: |
         autoreconf -vi
