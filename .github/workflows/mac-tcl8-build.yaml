@@ -17,7 +17,6 @@ jobs:
       run: |
         brew update
         brew reinstall tcl-tk@8
-        brew install zookeeper
         brew install autoconf
         brew install automake
         brew install cppunit
