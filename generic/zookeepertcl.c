@@ -1690,7 +1690,7 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZOOAP
 
 	char *path;
 	char *buffer;
-	int bufferLen = 0;
+	Tcl_Size bufferLen = 0;
 	int version = 0;
 
 	int i;
@@ -1781,7 +1781,7 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZO
 	};
 
 	char *path;
-	int valueLen = -1;
+	Tcl_Size valueLen = -1;
 	char *value = NULL;
 	int flags = 0;
 
