@@ -30,7 +30,7 @@ jobs:
         echo "@ Looking for MAX_PASSWORD_LEN pass 1"
         grep -r MAX_PASSWORD_LEN *
         echo "@ PATCHING APACHE ZOOKEEPER MAX_PASSWORD_LEN"
-        sed -i "" '/const size_t MAX_PASSWORD_LEN = 1023;/s//#define MAX_PASSWORD_LEN 1023/' zookeeper-client/zookeeper-client-c/src/zk_sasl.c
+        sed -i "" '/const size_t MAX_PASSWORD_LEN = \(.*\);/s//#define MAX_PASSWORD_LEN (\1)/' zookeeper-client/zookeeper-client-c/src/zk_sasl.c
         echo "@ COMPILING APACHE ZOOKEEPER-JUTE"
         mvn -pl zookeeper-jute compile
         echo "@ CONFIGURING C-CLIENT"
@@ -40,7 +40,7 @@ jobs:
         echo "@ Looking for MAX_PASSWORD_LEN pass 2"
         grep -r MAX_PASSWORD_LEN *
         echo "@ PATCHING APACHE ZOOKEEPER MAX_PASSWORD_LEN AGAIN"
-        sed -i "" '/const size_t MAX_PASSWORD_LEN = 1023;/s//#define MAX_PASSWORD_LEN 1023/' src/zk_sasl.c
+        sed -i "" '/const size_t MAX_PASSWORD_LEN = \(.*\);/s//#define MAX_PASSWORD_LEN (\1)/' src/zk_sasl.c
         make
         sudo make install
     - name: configure
