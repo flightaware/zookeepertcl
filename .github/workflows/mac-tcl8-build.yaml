@@ -30,7 +30,7 @@ jobs:
         cd zookeeper-client/zookeeper-client-c/
         autoreconf -vi
         ./configure
-        sed -i "" '/const size_t MAX_PASSWORD_LEN = 1023;/s//#define MAX_PASSWORD_LEN 1023/' src/zk_sasl.c
+        sed -i "" '/const size_t MAX_PASSWORD_LEN = \(.*\);/s//#define MAX_PASSWORD_LEN (\1)/' src/zk_sasl.c
         make
         sudo make install
     - name: configure
