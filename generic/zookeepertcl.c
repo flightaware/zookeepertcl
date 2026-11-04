@@ -941,7 +941,7 @@ zootcl_EventProc (Tcl_Event *tevPtr, int flags) {
 	Tcl_Interp *interp = zo->interp;
 	int tclReturnCode;
 
-	int callbackListObjc;
+	Tcl_Size callbackListObjc;
 	Tcl_Obj **callbackListObjv;
 
 	int evalObjc;
@@ -1170,9 +1170,9 @@ zootcl_zookeeperObjectDelete (ClientData clientData)
  *----------------------------------------------------------------------
  */
 int
-zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"-watch",
 		"-async",
 		"-stat",
@@ -1346,9 +1346,9 @@ zootcl_exists_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
  *----------------------------------------------------------------------
  */
 int
-zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"-watch",
 		"-async",
 		"-stat",
@@ -1556,12 +1556,12 @@ zootcl_get_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
  *----------------------------------------------------------------------
  */
 int
-zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
 	Tcl_Obj *callbackObj = NULL;
 	Tcl_Obj *watcherCallbackObj = NULL;
 
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"-watch",
 		"-async",
 		NULL
@@ -1675,11 +1675,11 @@ zootcl_children_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], 
  *----------------------------------------------------------------------
  */
 int
-zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
 	Tcl_Obj *callbackObj = NULL;
 
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"-async",
 		NULL
 	};
@@ -1690,7 +1690,7 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
 
 	char *path;
 	char *buffer;
-	int bufferLen = 0;
+	Tcl_Size bufferLen = 0;
 	int version = 0;
 
 	int i;
@@ -1763,9 +1763,9 @@ zootcl_set_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAP
  *----------------------------------------------------------------------
  */
 int
-zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"-async",
 		"-value",
 		"-ephemeral",
@@ -1781,7 +1781,7 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
 	};
 
 	char *path;
-	int valueLen = -1;
+	Tcl_Size valueLen = -1;
 	char *value = NULL;
 	int flags = 0;
 
@@ -1876,12 +1876,12 @@ zootcl_create_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
  *----------------------------------------------------------------------
  */
 int
-zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
 	Tcl_Obj *callbackObj = NULL;
 	int status;
 
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"-async",
 		NULL
 	};
@@ -1957,7 +1957,7 @@ zootcl_delete_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZO
  *----------------------------------------------------------------------
  */
 int
-zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
+zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[], ZOOAPI zhandle_t *zh, zootcl_objectClientData *zo)
 {
     // Remove the command exit handler and delete the command
     Tcl_CmdInfo *infoPtr = (Tcl_CmdInfo *) ckalloc (sizeof (Tcl_CmdInfo));
@@ -1985,7 +1985,7 @@ zootcl_destroy_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[], Z
  *----------------------------------------------------------------------
  */
 int
-zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     zootcl_objectClientData *zo = (zootcl_objectClientData *)clientData;
     assert (zo->zookeeper_object_magic == ZOOKEEPER_OBJECT_MAGIC);
@@ -1993,7 +1993,7 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
 	ZOOAPI zhandle_t *zh = zo->zh;
 
 	int optIndex;
-    static CONST char *options[] = {
+    static const char *options[] = {
         "get",
         "children",
 		"set",
@@ -2131,13 +2131,13 @@ zootcl_zookeeperObjectObjCmd(ClientData clientData, Tcl_Interp *interp, int objc
  *----------------------------------------------------------------------
  */
 int
-zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
 	zootcl_objectClientData *zo = NULL;
 	int timeout;
 	Tcl_Obj *callbackObj = NULL;
 
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"-async",
 		NULL
 	};
@@ -2247,11 +2247,11 @@ zootcl_init_subcommand(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 
     /* ARGSUSED */
 int
-zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     int                 optIndex;
 
-    static CONST char *options[] = {
+    static const char *options[] = {
         "init",
         "version",
         "debug_level",
@@ -2302,7 +2302,7 @@ zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
 		{
 			int zooLogLevel = 0;
 			int subOption = 0;
-			static CONST char *subOptions[] = {
+			static const char *subOptions[] = {
 				"error",
 				"warn",
 				"info",

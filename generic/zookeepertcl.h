@@ -17,8 +17,21 @@
 
 #define ZOOKEEPER_OBJECT_MAGIC 7220331
 
+/*
+ * Tcl_Size was introduced in Tcl 9.  zookeepertcl still supports building against
+ * Tcl 8.6, where Tcl object and list sizes are int-sized.
+ */
+#ifndef TCL_SIZE_MAX
+# define Tcl_GetSizeIntFromObj Tcl_GetIntFromObj
+# define TCL_SIZE_MAX      INT_MAX
+# ifndef Tcl_Size
+    typedef int Tcl_Size;
+# endif
+# define TCL_SIZE_MODIFIER ""
+#endif
+
 extern int
-zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objvp[]);
+zootcl_zookeeperObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objvp[]);
 
 // this is the data structure we have to throw around between
 // zookeeper and zookeepertcl to be able to find one from the other
